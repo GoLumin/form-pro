@@ -1,0 +1,71 @@
+---
+// Submit one quote as if you were a visitor and see every decision it triggers,
+// then edit the configuration that made those decisions.
+//
+// Runs in every environment behind HTTP Basic auth, applied right here rather
+// than in the site's middleware, so adding the integration is the whole install.
+//
+// Deliberately standalone: no layout, no CMS, no navbar, and its own bundled
+// script and stylesheet rather than the site's. It has to work on a checkout
+// with no CMS credentials, which is exactly when you most want to test a form —
+// and shipping its own bundle is what lets it look and behave identically on a
+// site built with React and one built with Preact.
+import { LOCATIONS } from 'virtual:form-console/config'
+import options from 'virtual:form-console/options'
+import { basicAuthChallenge, consoleToken } from '../auth.ts'
+
+export const prerender = false
+
+const denied = basicAuthChallenge(Astro.request)
+if (denied) return denied
+
+// Only an authenticated render gets this, and it is what authorises the
+// endpoints behind the page — a browser will not resend Basic credentials on a
+// fetch() from a document whose URL carried them.
+const token = await consoleToken()
+
+const markets = Object.entries(LOCATIONS).map(([slug, location]) => ({
+  slug,
+  name: location.name,
+}))
+
+const brand = options.title || markets[0]?.name || 'Form console'
+const assets = `${options.route}/assets`
+const v = encodeURIComponent(options.version)
+
+// Two weeks out, so the date is always valid without anyone editing it.
+const defaultDate = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10)
+
+const bootstrap = {
+  token,
+  api: `${options.route}/api`,
+  brand,
+  crm: options.crm,
+  host: options.host,
+  configPath: options.configPath,
+  route: options.route,
+  markets,
+  single: markets.length === 1,
+  defaultDate,
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{brand} — form console</title>
+    <link rel="stylesheet" href={`${assets}/console.css?v=${v}`} />
+  </head>
+  <body>
+    <div id="form-console-root"></div>
+    <script is:inline define:vars={{ bootstrap }}>
+      window.__formConsole = bootstrap
+    </script>
+    {/* is:inline so Astro leaves it alone: the bundle is already built, and a
+        site's own pipeline compiling it again is what breaks it. */}
+    <script is:inline type="module" src={`${assets}/console.js?v=${v}`}></script>
+  </body>
+</html>
