@@ -385,19 +385,18 @@ function Toggle({
         className="mt-0.5"
       />
       <div className="space-y-1">
-        <Label htmlFor={id} className="flex items-center gap-1.5 font-semibold">
-          {danger && <AlertTriangle className="size-3.5 text-destructive" />}
-          {title}
-        </Label>
-        <p
+        <Label
+          htmlFor={id}
           className={
             danger
-              ? 'text-xs leading-relaxed text-destructive/90'
-              : 'text-xs leading-relaxed text-muted-foreground'
+              ? 'flex items-center gap-1.5 font-semibold text-destructive'
+              : 'flex items-center gap-1.5 font-semibold'
           }
         >
-          {hint}
-        </p>
+          {danger && <AlertTriangle className="size-3.5" />}
+          {title}
+        </Label>
+        <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>
       </div>
     </div>
   )

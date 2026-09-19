@@ -177,7 +177,7 @@ export function MailPreview({
           Click any outlined line to edit it. Grey chips are filled in per submission — keep or
           delete them, and click the <span className="underline decoration-dotted">dated</span> one
           to change how dates read.{' '}
-          <span className="font-semibold text-blue-600">Blue</span> lines are shared with every
+          <span className="font-semibold text-shared">Blue</span> lines are shared with every
           email.
         </p>
         <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>

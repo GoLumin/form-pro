@@ -64,13 +64,15 @@ export function Results({ result }: { result: SubmitResponse | null }) {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="border-primary/20 bg-linear-to-b from-primary/[0.04] to-transparent">
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <CardTitle className="flex items-center gap-2">
                 {result.market?.name}
-                <Badge variant="secondary">{result.market?.slug}</Badge>
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
+                  {result.market?.slug}
+                </Badge>
               </CardTitle>
               <CardDescription>
                 {single
@@ -247,7 +249,10 @@ function Envelope({
             {icon}
             {title}
           </CardTitle>
-          <Badge variant={sent ? 'destructive' : 'secondary'}>
+          <Badge
+            variant="secondary"
+            className={sent ? 'bg-success text-success-foreground' : undefined}
+          >
             {sent ? <Check className="size-3" /> : null}
             {sent ? 'really sent' : 'rendered only'}
           </Badge>

@@ -9,6 +9,7 @@
 
 import type { AstroIntegration } from 'astro'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -87,14 +88,24 @@ export interface FormConsoleOptions {
 
 const NAME = '@golumin/form-pro'
 
-/** This package's own version, read once, for the console bundle's cache key. */
+/**
+ * A cache key for the console bundle, taken from the bundle's own contents.
+ *
+ * Not the package version: during development the files change constantly and
+ * the version does not, so a version key serves a stale console from cache and
+ * every edit looks like it did nothing. A content hash moves whenever the
+ * output does and never when it doesn't, which is also what makes it safe to
+ * serve the assets as immutable.
+ */
 const VERSION: string = (() => {
   try {
-    return JSON.parse(
-      readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')
-    ).version
+    const hash = createHash('sha1')
+    for (const name of ['console.js', 'console.css']) {
+      hash.update(readFileSync(fileURLToPath(new URL(`./console/${name}`, import.meta.url))))
+    }
+    return hash.digest('hex').slice(0, 12)
   } catch {
-    return '0'
+    return String(Date.now())
   }
 })()
 

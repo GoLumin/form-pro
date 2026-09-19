@@ -27,9 +27,9 @@ export const GET: APIRoute = ({ params }) => {
   return new Response(body, {
     headers: {
       'Content-Type': TYPES[file.split('.').pop() as string],
-      // Immutable in practice: the contents only change when the package does,
-      // and the page asks for them with the package's version on the query.
-      'Cache-Control': 'public, max-age=3600',
+      // Safe to pin hard: the page asks for these with a hash of their own
+      // contents on the query, so a changed bundle is a different URL.
+      'Cache-Control': 'public, max-age=31536000, immutable',
     },
   })
 }

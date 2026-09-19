@@ -174,7 +174,7 @@ export function App() {
           save.tone === 'bad'
             ? 'text-sm text-destructive'
             : save.tone === 'good'
-              ? 'text-sm text-emerald-700'
+              ? 'text-sm text-success'
               : 'text-sm text-muted-foreground'
         }
         aria-live="polite"
@@ -188,13 +188,19 @@ export function App() {
   )
 
   const productionWarning = (
-    <Alert className="border-amber-300/60 bg-amber-50 text-amber-950 dark:bg-amber-950/20">
-      <AlertTriangle className="text-amber-600" />
+    <Alert className="border-warning/30 bg-warning-surface text-warning-ink">
+      <AlertTriangle className="text-warning" />
       <AlertTitle>Editing here changes production</AlertTitle>
-      <AlertDescription className="text-amber-900/90 dark:text-amber-200/80">
-        The Editor writes <code className="rounded bg-amber-100 px-1">{configPath}</code> — the
-        source the live site runs on, not a copy of it.
-        <ul className="mt-2 list-disc space-y-1 pl-5">
+      {/* One <p> around the prose on purpose: AlertDescription lays its
+          children out as grid rows, so loose text nodes and an inline <code>
+          would each land on a line of their own. */}
+      <AlertDescription className="text-warning-ink/90">
+        <p>
+          The Editor writes{' '}
+          <code className="rounded bg-warning/15 px-1 font-mono">{configPath}</code> — the source
+          the live site runs on, not a copy of it.
+        </p>
+        <ul className="list-disc space-y-1 pl-5">
           <li>
             <b>Save and deploy</b> commits straight to the production branch; {host} builds it and
             it is live within a couple of minutes, with no review step.
@@ -220,8 +226,8 @@ export function App() {
   )
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
+    <div className="min-h-screen bg-shell text-foreground">
+      <header className="flex flex-wrap items-center gap-3 border-b bg-card px-6 py-4">
         <Badge variant="outline" className="uppercase tracking-wider">
           Form console
         </Badge>
@@ -232,7 +238,7 @@ export function App() {
         <Button
           variant="ghost"
           size="icon"
-          className="ml-auto rounded-full text-amber-600"
+          className="ml-auto rounded-full text-warning hover:bg-warning-surface"
           aria-label="What editing here affects"
           onClick={() => setWarning(true)}
         >
@@ -241,8 +247,13 @@ export function App() {
       </header>
 
       <div className="grid gap-6 p-6 lg:grid-cols-[minmax(320px,1fr)_2fr]">
-        <div className="space-y-4">
-          <h2 className="text-sm font-semibold">Quote submission</h2>
+        <div className="h-fit space-y-5 rounded-xl border bg-card p-5 shadow-xs">
+          <div>
+            <h2 className="font-semibold">Quote submission</h2>
+            <p className="text-sm text-muted-foreground">
+              One submission, run through the real code paths.
+            </p>
+          </div>
           <QuoteForm onResult={setResult} busy={busy} setBusy={setBusy} />
         </div>
 
@@ -378,7 +389,7 @@ export function App() {
                 <p className="rounded bg-destructive/10 px-2 py-1 font-mono text-xs line-through">
                   {c.before || '(empty)'}
                 </p>
-                <p className="rounded bg-emerald-500/10 px-2 py-1 font-mono text-xs">
+                <p className="rounded bg-success-surface px-2 py-1 font-mono text-xs">
                   {c.after || '(empty)'}
                 </p>
               </div>
