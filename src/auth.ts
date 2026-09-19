@@ -9,7 +9,7 @@
 // matters.
 
 import { envValue } from './env.ts'
-import options from 'virtual:form-console/options'
+import options from 'virtual:form-pro/options'
 
 const REALM = 'Form console'
 

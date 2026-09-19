@@ -7,7 +7,7 @@
 // page may belong to another, and the lead must be priced, emailed and filed by
 // the market that actually serves the address.
 
-import { LOCATIONS, ZIP_LOOKUP_ORDER } from 'virtual:form-console/config'
+import { LOCATIONS, ZIP_LOOKUP_ORDER } from 'virtual:form-pro/config'
 import type { Location } from './types.ts'
 
 export function getLocation(slug: string | null | undefined): Location | null {

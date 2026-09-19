@@ -7,7 +7,7 @@
 // `import { env } from 'cloudflare:workers'` — an import that does not resolve
 // off Cloudflare, so this package cannot make it.
 //
-// So the site makes it. `virtual:form-console/env` is whatever module the
+// So the site makes it. `virtual:form-pro/env` is whatever module the
 // integration was pointed at; without one it is the Node path, which is right
 // for a Node host and empty on a Worker. Everything here goes through that seam
 // rather than through `Astro.locals`, which used to carry the Worker's env and
@@ -17,7 +17,7 @@
 // hosting dashboard takes effect on the next request instead of the next
 // deploy, and nothing holds a secret longer than one call.
 
-import { readEnv } from 'virtual:form-console/env'
+import { readEnv } from 'virtual:form-pro/env'
 
 type Bag = Record<string, unknown> | undefined
 

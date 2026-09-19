@@ -9,7 +9,7 @@
  * drops the oldest.
  */
 
-import options from 'virtual:form-console/options'
+import options from 'virtual:form-pro/options'
 
 export interface Revision {
   /** ISO timestamp, UTC. */

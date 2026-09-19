@@ -85,7 +85,7 @@ export interface FormConsoleOptions {
   logoResolver?: string
 }
 
-const NAME = '@golumin/astro-form-console'
+const NAME = '@golumin/form-pro'
 
 /** This package's own version, read once, for the console bundle's cache key. */
 const VERSION: string = (() => {
@@ -168,11 +168,11 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
               {
                 name: 'form-console:virtual',
                 resolveId(id: string) {
-                  if (id.startsWith('virtual:form-console/')) return '\0' + id
+                  if (id.startsWith('virtual:form-pro/')) return '\0' + id
                   return null
                 },
                 load(id: string) {
-                  if (id === '\0virtual:form-console/config') {
+                  if (id === '\0virtual:form-pro/config') {
                     // Re-exported rather than copied: the console reads exactly
                     // the module the site's own form reads, so a preview can
                     // never describe a config the form is not using.
@@ -189,10 +189,10 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
                       `  __site.ZIP_LOOKUP_ORDER ?? Object.keys(__site.LOCATIONS)`,
                     ].join('\n')
                   }
-                  if (id === '\0virtual:form-console/options') {
+                  if (id === '\0virtual:form-pro/options') {
                     return `export default ${JSON.stringify(resolved)}`
                   }
-                  if (id === '\0virtual:form-console/mail') {
+                  if (id === '\0virtual:form-pro/mail') {
                     // No transport configured: rendering still works, and
                     // anything that would send says so rather than silently
                     // dropping the message.
@@ -204,18 +204,18 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
                            )
                          }`
                   }
-                  if (id === '\0virtual:form-console/env') {
+                  if (id === '\0virtual:form-pro/env') {
                     return envPath
                       ? `export { readEnv } from ${JSON.stringify(envPath)}`
                       : `export const readEnv = () => undefined`
                   }
-                  if (id === '\0virtual:form-console/logo') {
+                  if (id === '\0virtual:form-pro/logo') {
                     return logoPath
                       ? `export { getEmailLogoUrl } from ${JSON.stringify(logoPath)}`
-                      : `import options from 'virtual:form-console/options'
+                      : `import options from 'virtual:form-pro/options'
                          export const getEmailLogoUrl = async () => options.logo`
                   }
-                  if (id === '\0virtual:form-console/quoting') {
+                  if (id === '\0virtual:form-pro/quoting') {
                     return `export * from ${JSON.stringify(quotingPath ?? 'virtual:quoting')}`
                   }
                   return null
@@ -252,8 +252,23 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           )
         }
       },
+
+      // Declared by the integration rather than shipped as a .d.ts the consumer
+      // has to remember to include.
+      'astro:config:done': ({ injectTypes }) => {
+        injectTypes({ filename: 'form-pro.d.ts', content: CONSOLE_TYPES })
+      },
     },
   }
 }
+
+const CONSOLE_TYPES = `declare module 'virtual:form-pro/config' {
+  import type { EmailLabels, Location, SiteSettings } from '@golumin/form-pro/types'
+  export const LOCATIONS: Record<string, Location>
+  export const EMAIL_LABELS: EmailLabels
+  export const SITE_SETTINGS: SiteSettings
+  export const ZIP_LOOKUP_ORDER: string[]
+}
+`
 
 export type { Location, Lead, EmailEnvelope, SiteSettings, EmailLabels } from './types.ts'

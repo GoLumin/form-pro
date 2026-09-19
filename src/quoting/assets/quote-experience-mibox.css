@@ -1,0 +1,215 @@
+.qx.qx-mibox {
+    --primary: #882435;
+    --primary-deep: #681b29;
+    --on-primary: #ffffff;
+    --dark: #1a2e3b;
+    --dark-2: #223a4a;
+    --on-dark: #ffffff;
+    --on-dark-dim: #9fb3c0;
+    --ink: #1a2e3b;
+    --ink-soft: #4b5563;
+    --ink-faint: #6b7280;
+    --sans:
+        ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+    --mono:
+        ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+    background: #ffffff;
+}
+
+.qx.qx-mibox h2 {
+    font-weight: 800;
+    color: #1a2e3b;
+}
+
+.qx.qx-mibox .step h3 {
+    color: #1a2e3b;
+}
+
+.qx.qx-mibox .eyebrow {
+    color: #882435;
+}
+
+.qx.qx-mibox .btn {
+    border-radius: 4px;
+}
+
+.qx.qx-mibox .btn.primary {
+    background: #882435;
+    color: #ffffff;
+    box-shadow: 0 3px 0 #681b29;
+}
+
+.qx.qx-mibox .btn.primary:hover {
+    background: #9f3043;
+}
+
+.qx.qx-mibox .btn.dark {
+    background: #1a2e3b;
+    color: #ffffff;
+    box-shadow: 0 3px 0 #0f1d27;
+}
+
+.qx.qx-mibox .btn.outline-dark {
+    border-color: #1a2e3b;
+    color: #1a2e3b;
+}
+
+.qx.qx-mibox .btn.outline-dark:hover {
+    background: #1a2e3b;
+    color: #ffffff;
+}
+
+.qx.qx-mibox .btn.ghost:hover {
+    border-color: #882435;
+    color: #882435;
+}
+
+.qx.qx-mibox .panel-h .tag {
+    background: #1a2e3b;
+    color: #ffffff;
+}
+
+.qx.qx-mibox .opt input:checked + .box .s {
+    color: #882435;
+}
+
+.qx.qx-mibox .qh .svc {
+    color: #882435;
+}
+
+.qx.qx-mibox .transit b {
+    color: #882435;
+}
+
+.qx.qx-mibox .li .amt,
+.qx.qx-mibox .total,
+.qx.qx-mibox .total .big {
+    color: #1a2e3b;
+}
+
+.qx.qx-mibox .cell .v {
+    color: #1a2e3b;
+}
+
+.qx.qx-mibox .rev .av {
+    background: #1a2e3b;
+    color: #ffffff;
+}
+
+.qx.qx-mibox .stars {
+    color: #882435;
+}
+
+.qx.qx-mibox .viz {
+    background: radial-gradient(
+        120% 90% at 50% 15%,
+        #f6f8fa,
+        #dde5ec
+    );
+}
+
+.qx.qx-mibox .viz .dimtag {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: #882435;
+    color: #1a2e3b;
+    font-weight: 700;
+}
+
+.qx.qx-mibox .end h2 {
+    color: #1a2e3b;
+    font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.qx.qx-mibox .end p {
+    color: rgba(26, 46, 59, 0.78);
+}
+
+.qx.qx-mibox .end .eyebrow {
+    color: rgba(26, 46, 59, 0.75);
+    background: rgba(26, 46, 59, 0.08);
+}
+
+.qx.qx-mibox .sec-head h2 {
+    font-size: clamp(1.875rem, 4vw, 3rem);
+    letter-spacing: -0.025em;
+}
+
+.qx.qx-mibox .eyebrow {
+    font-weight: 700;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    background: rgba(136, 36, 53, 0.08);
+    padding: 0.4em 1em;
+    border-radius: 4px;
+}
+
+.qx.qx-mibox .panel-h .t,
+.qx.qx-mibox .field > label,
+.qx.qx-mibox .qh .lab,
+.qx.qx-mibox .transit-head,
+.qx.qx-mibox .cell .k,
+.qx.qx-mibox .step .idx,
+.qx.qx-mibox .total .tl {
+    letter-spacing: 0.1em;
+    font-weight: 700;
+}
+
+.qx.qx-mibox .total .big {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.qx.qx-mibox .cell .v {
+    font-weight: 800;
+}
+
+.qx.qx-mibox .li .amt {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.qx.qx-mibox .opt .box .s {
+    font-size: 0.78rem;
+}
+
+.qx.qx-mibox .btn .lbl {
+    display: block;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.85;
+    margin-bottom: 2px;
+}
+
+/* One centred column: the CTA, the FAQ link, then the small print. This used
+   to be a two-column grid holding a pair of phone buttons. */
+.qx.qx-mibox .qcta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.qx.qx-mibox .qcta .btn {
+    width: 100%;
+    padding: 14px 16px;
+    line-height: 1.25;
+}
+
+.qx.qx-mibox .end .btn {
+    flex-direction: column;
+    line-height: 1.25;
+}
+
+.qx.qx-mibox .qcta .qq {
+    text-align: center;
+    font-size: 0.85rem;
+    color: #882435;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+

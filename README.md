@@ -1,4 +1,4 @@
-# @golumin/astro-form-console
+# @golumin/form-pro
 
 An Astro integration that gives a marketing site **one declared source of truth**
 for its lead forms — who each email comes from and goes to, exactly which keys
@@ -38,12 +38,12 @@ use layers and the console's utilities win, as they should.
 ## Install
 
 ```sh
-npm install @golumin/astro-form-console
+npm install @golumin/form-pro
 ```
 
 ```js
 // astro.config.mjs
-import formConsole from '@golumin/astro-form-console'
+import formConsole from '@golumin/form-pro'
 
 export default defineConfig({
   output: 'server',
@@ -88,6 +88,50 @@ Four things are seams rather than assumptions, each passed as a module path:
 - **`quoting`** — defaults to the `virtual:quoting` module the quote-experience
   integration provides.
 - **`logoResolver`** — for a site whose email logo varies by hostname.
+
+## The quoting integration
+
+A second integration in the same package binds `virtual:quoting` to one gofuse
+instance and exposes the per-site presentation config the quote pages read.
+
+```js
+import quoteExperience from '@golumin/form-pro/quoting'
+
+quoteExperience({
+  baseUrl: 'https://mulebox.gofuse.app',
+  tokenEnv: 'GOFUSE_API_TOKEN',
+  env: './src/lib/consoleEnv.ts',   // Cloudflare only
+  logo: '/logo.webp',
+  phones: [{ label: 'Austin Customers', number: '5125752929' }],
+})
+```
+
+Its stylesheet and WebGL script are package exports, imported by the page that
+needs them rather than injected into every page:
+
+```js
+import scriptUrl from '@golumin/form-pro/quoting/assets/quote-experience-vt.js?url'
+import '@golumin/form-pro/quoting/assets/quote-experience.css'
+```
+
+Three things about it are deliberate:
+
+- **The token is never in the bundle.** It is read through `readEnv` at call
+  time, so there is no secret to leak if the module is imported from the
+  browser, and rotating it in a hosting dashboard takes effect on the next
+  request rather than the next deploy.
+- **`virtual:quoting` refuses to load in the client build.** A client that
+  silently cannot authenticate is worse than a build that stops and names the
+  file importing it. Astro's `prerender` environment is allowed — that is still
+  the server.
+- **`.env` is read from the project root, not the working directory**, so
+  `astro dev --root apps/site`, or any script run from a parent folder, reads
+  the right file. `config.root` is a `URL`, so it is converted rather than
+  passed straight to `loadEnv`.
+
+`preview` and `sync` are treated as production, because they operate on built
+output and should read the variables the build did. A token change needs a
+restart; there is no watch on it.
 
 ## What it adds
 

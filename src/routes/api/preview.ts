@@ -7,7 +7,7 @@
 
 import type { APIRoute } from 'astro'
 import { authorize, fail, json, logoUrlFor } from './_shared.ts'
-import { LOCATIONS, EMAIL_LABELS } from 'virtual:form-console/config'
+import { LOCATIONS, EMAIL_LABELS } from 'virtual:form-pro/config'
 import { emailSubjectFor, resolveEnvelope, serviceLabel } from '../../config.ts'
 import { renderQuoteEmails } from '../../email/quoteEmails.ts'
 

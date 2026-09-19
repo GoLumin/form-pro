@@ -11,10 +11,10 @@
 import type { APIRoute } from 'astro'
 import { canaryEnabled, canaryRecipient, runCanary } from '../../canary.ts'
 import { canarySubject, renderCanaryEmail } from '../../email/canaryEmail.ts'
-import { getEmailLogoUrl } from 'virtual:form-console/logo'
-import { sendEmail } from 'virtual:form-console/mail'
+import { getEmailLogoUrl } from 'virtual:form-pro/logo'
+import { sendEmail } from 'virtual:form-pro/mail'
 import { envValue } from '../../env.ts'
-import { LOCATIONS } from 'virtual:form-console/config'
+import { LOCATIONS } from 'virtual:form-pro/config'
 import { formatSender } from '../../config.ts'
 
 export const prerender = false

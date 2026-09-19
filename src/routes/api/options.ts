@@ -9,7 +9,7 @@
 
 import type { APIRoute } from 'astro'
 import { authorize, json } from './_shared.ts'
-import { getConfig } from 'virtual:form-console/quoting'
+import { getConfig } from 'virtual:form-pro/quoting'
 import { containerSizeLabel, QUOTING_SERVICE_TYPE } from '../../catalog.ts'
 import { isCompleteZip, resolveQuoteLocation } from '../../routing.ts'
 

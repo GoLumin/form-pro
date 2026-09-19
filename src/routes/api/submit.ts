@@ -18,9 +18,9 @@
 
 import type { APIRoute } from 'astro'
 import { authorize, json, logoUrlFor } from './_shared.ts'
-import { EMAIL_LABELS } from 'virtual:form-console/config'
-import { createQuote, getConfig, previewQuote } from 'virtual:form-console/quoting'
-import { sendEmail } from 'virtual:form-console/mail'
+import { EMAIL_LABELS } from 'virtual:form-pro/config'
+import { createQuote, getConfig, previewQuote } from 'virtual:form-pro/quoting'
+import { sendEmail } from 'virtual:form-pro/mail'
 import {
   buildWebhookPayload,
   emailSubjectFor,

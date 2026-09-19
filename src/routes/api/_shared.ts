@@ -7,7 +7,7 @@ import { guard } from '../../auth.ts'
 import { getFile, githubConfig } from '../../editor/github.ts'
 import { parseRevisions, REVISIONS_PATH, type Revision } from '../../editor/revisions.ts'
 import { SOURCE_PATH } from '../../editor/source.ts'
-import { getEmailLogoUrl } from 'virtual:form-console/logo'
+import { getEmailLogoUrl } from 'virtual:form-pro/logo'
 
 export const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {

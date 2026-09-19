@@ -1,5 +1,5 @@
-import { getConfig, previewQuote } from 'virtual:form-console/quoting'
-import { EMAIL_LABELS, LOCATIONS, SITE_SETTINGS } from 'virtual:form-console/config'
+import { getConfig, previewQuote } from 'virtual:form-pro/quoting'
+import { EMAIL_LABELS, LOCATIONS, SITE_SETTINGS } from 'virtual:form-pro/config'
 import {
   buildWebhookPayload,
   emailSubjectFor,

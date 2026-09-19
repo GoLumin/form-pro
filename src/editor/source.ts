@@ -1,5 +1,5 @@
-import options from 'virtual:form-console/options'
-import { EMAIL_LABELS, LOCATIONS, SITE_SETTINGS } from 'virtual:form-console/config'
+import options from 'virtual:form-pro/options'
+import { EMAIL_LABELS, LOCATIONS, SITE_SETTINGS } from 'virtual:form-pro/config'
 import type { EmailLabels, Location } from '../types.ts'
 
 /**
