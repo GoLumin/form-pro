@@ -193,6 +193,30 @@ function blockRange(source: string, slug: string): [number, number] {
 }
 
 /**
+ * How far a comment starting at `i` runs, or -1 when one does not start there.
+ *
+ * The scanners below track string state so a brace inside a quoted value does
+ * not move their depth count. Comments need the same treatment for the opposite
+ * reason: an apostrophe in ordinary prose — "each market's own webhook" — opens
+ * a string that never closes, and from there every brace is counted wrong and
+ * an edit lands in the wrong entry. That failure is silent: the file still
+ * parses, so the site still builds, and the only sign is a value that moved on
+ * its own.
+ */
+function commentEnd(text: string, i: number): number {
+  if (text[i] !== '/') return -1
+  if (text[i + 1] === '/') {
+    const nl = text.indexOf('\n', i)
+    return nl === -1 ? text.length : nl
+  }
+  if (text[i + 1] === '*') {
+    const close = text.indexOf('*/', i + 2)
+    return close === -1 ? text.length : close + 1
+  }
+  return -1
+}
+
+/**
  * The end of the value that starts at `start`: the index just past the comma
  * that closes it, or at the bracket that closes the object holding it.
  *
@@ -210,6 +234,11 @@ function valueEnd(block: string, start: number): number {
     if (quote) {
       if (c === '\\') i += 1
       else if (c === quote) quote = null
+      continue
+    }
+    const comment = commentEnd(block, i)
+    if (comment !== -1) {
+      i = comment
       continue
     }
     if (c === "'" || c === '"' || c === '`') quote = c
@@ -297,6 +326,11 @@ function arrayEntries(source: string, open: number): [number, number][] {
     if (quote) {
       if (c === '\\') i += 1
       else if (c === quote) quote = null
+      continue
+    }
+    const comment = commentEnd(source, i)
+    if (comment !== -1) {
+      i = comment
       continue
     }
     if (c === "'" || c === '"' || c === '`') quote = c

@@ -70,6 +70,35 @@ ok(
     "export const FIELDS = [\n  { id: 'a', type: 'text', label: 'New' },\n] as const\n"
 )
 
+// An apostrophe in a comment must not open a string. Before the scanners
+// understood comments, "market's" swallowed every brace after it, the entry
+// spans slid, and a label was written into the wrong field — silently, because
+// the result still parsed and the site still built.
+const commented = [
+  'export const FIELDS = [',
+  "  {",
+  "    id: 'storageType',",
+  "    label: 'Storage',",
+  '    type: "choice",',
+  "    // what each market's own catalog narrows; see the profile's fieldOptions",
+  '    options: [],',
+  '  },',
+  "  { id: 'containerSize', label: 'Container size', type: 'choice' },",
+  '] as const',
+  '',
+].join('\n')
+ok(
+  'an apostrophe in a comment does not shift the entry spans',
+  applyFieldLabels(commented, { storageType: 'Storage', containerSize: 'Container size' }) ===
+    commented
+)
+ok(
+  'and the right entry is still editable through one',
+  applyFieldLabels(commented, { containerSize: 'Box size' }).includes(
+    "{ id: 'containerSize', label: 'Box size', type: 'choice' }"
+  ) && applyFieldLabels(commented, { containerSize: 'Box size' }).includes("label: 'Storage',")
+)
+
 // One profile: scalars, a multi-line array, a nested value and the copy blocks.
 out = applyEdit(out, {
   slug: 'main',
