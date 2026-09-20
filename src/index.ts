@@ -186,6 +186,31 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
         const configSource = readFileSync(configPath, 'utf8')
         const declares = (name: string) =>
           new RegExp(`export\\s+const\\s+${name}\\b`).test(configSource)
+
+        // Checked here rather than left to the first request. A config missing
+        // one of these still imports cleanly and still builds; what fails is a
+        // route, at request time, with `fields is not iterable` and nothing
+        // pointing at the file that is actually wrong.
+        const missing = ['FIELDS', 'PROFILES', 'EMAIL_LABELS', 'SITE_SETTINGS'].filter(
+          (name) => !declares(name)
+        )
+        if (missing.length) {
+          const relative = path.relative(root, configPath).split(path.sep).join('/')
+          throw new Error(
+            `${NAME}: ${relative} does not export ${missing.join(', ')}.\n\n` +
+              'Every site config declares FIELDS (what the form collects), PROFILES ' +
+              '(where a lead goes), EMAIL_LABELS and SITE_SETTINGS.\n' +
+              'Worked examples ship with the package:\n' +
+              '  node_modules/@golumin/form-pro/src/examples/contactForm.ts — one form, one inbox\n' +
+              '  node_modules/@golumin/form-pro/src/examples/quoteForm.ts   — several profiles, routing, pricing\n\n' +
+              (declares('LOCATIONS')
+                ? 'This config still exports LOCATIONS. It predates the field schema: ' +
+                  'LOCATIONS is now PROFILES, ZIP_LOOKUP_ORDER is now ROUTING, ' +
+                  'EMAIL_LABELS.rows is now the labels on FIELDS, and every webhook key ' +
+                  "draws from a field id. See the package README's config section."
+                : '')
+          )
+        }
         const dbSource =
           options.database?.enabled === false
             ? 'export const database = null'

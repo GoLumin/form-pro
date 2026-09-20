@@ -64,9 +64,13 @@ export function App() {
       return
     }
     setData(data)
-    setProfiles(data.profiles)
-    setFields(data.fields)
-    setFieldLabels(Object.fromEntries(data.fields.map((f) => [f.id, f.label])))
+    setProfiles(data.profiles ?? [])
+    // Defaulted rather than trusted: an older deployed endpoint answering a
+    // newer console should leave the page usable and visibly empty, not throw
+    // on the first render.
+    const incoming = data.fields ?? []
+    setFields(incoming)
+    setFieldLabels(Object.fromEntries(incoming.map((f) => [f.id, f.label])))
     setLabels(data.labels)
     setSettings(data.settings)
     setRevisions(data.revisions ?? [])
