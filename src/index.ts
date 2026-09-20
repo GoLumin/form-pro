@@ -11,7 +11,7 @@ import type { AstroIntegration } from 'astro'
 import { adapterKind, databaseModule, envModule } from './generated.ts'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 export interface FormConsoleOptions {
@@ -205,91 +205,104 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           adapter,
         }
 
+        // The modules the package imports, written to disk and aliased rather
+        // than served from a Vite plugin as `virtual:` ids.
+        //
+        // A plugin's resolveId is never consulted for an import that appears
+        // *inside* node_modules, so once the package is installed rather than
+        // linked, dependency optimisation hands those ids straight to esbuild
+        // and the build fails. An alias to a real file is resolved by every
+        // stage, including that one.
+        const generatedDir = path.join(root, '.astro', 'form-pro')
+        mkdirSync(generatedDir, { recursive: true })
+
+        const emit = (name: string, contents: string): string => {
+          const file = path.join(generatedDir, `${name}.mjs`)
+          // Only written when it differs, so a watching dev server is not
+          // restarted by a build that changed nothing.
+          const next = `${contents.trim()}\n`
+          try {
+            if (readFileSync(file, 'utf8') === next) return file
+          } catch {
+            // Not written yet.
+          }
+          writeFileSync(file, next)
+          return file
+        }
+
+        // The array form with anchored patterns, not an object: a string alias
+        // matches by prefix, so `virtual:quoting/config` would resolve under
+        // `virtual:quoting`'s file. Arrays also concatenate when two
+        // integrations both add aliases, which is what we want.
+        const alias: { find: RegExp; replacement: string }[] = [
+          {
+            find: /^virtual:form-pro\/options$/,
+            replacement: emit('options', `export default ${JSON.stringify(resolved)}`),
+          },
+          {
+            find: /^virtual:form-pro\/config$/,
+            replacement: emit(
+            'config',
+            [
+              `export * from ${JSON.stringify(configPath)}`,
+              // Whether the site declares an order is settled by reading the
+              // file, rather than by reaching for a named export that may not
+              // exist — which the bundler is right to warn about.
+              declaresLookupOrder
+                ? ''
+                : [
+                    `import { LOCATIONS as __locations } from ${JSON.stringify(configPath)}`,
+                    `export const ZIP_LOOKUP_ORDER = Object.keys(__locations)`,
+                  ].join('\n'),
+            ].join('\n')
+          ),
+          },
+          {
+            find: /^virtual:form-pro\/mail$/,
+            replacement: emit(
+            'mail',
+            mailPath
+              ? `export { sendEmail } from ${JSON.stringify(mailPath)}`
+              : `export const sendEmail = async () => {
+                   throw new Error(
+                     'form-pro: no mail transport configured. Pass mail: "./src/utils/sendEmail.ts" to the integration.'
+                   )
+                 }`
+          ),
+          },
+          {
+            find: /^virtual:form-pro\/env$/,
+            replacement: emit(
+              'env',
+              envPath ? `export { readEnv } from ${JSON.stringify(envPath)}` : envModule(adapter)
+            ),
+          },
+          { find: /^virtual:form-pro\/db$/, replacement: emit('db', dbSource) },
+          {
+            find: /^virtual:form-pro\/logo$/,
+            replacement: emit(
+            'logo',
+            logoPath
+              ? `export { getEmailLogoUrl } from ${JSON.stringify(logoPath)}`
+              : `import options from ${JSON.stringify(path.join(generatedDir, 'options.mjs'))}
+                 export const getEmailLogoUrl = async () => options.logo`
+          ),
+          },
+          {
+            find: /^virtual:form-pro\/quoting$/,
+            replacement: emit(
+              'quoting',
+              `export * from ${JSON.stringify(quotingPath ?? 'virtual:quoting')}`
+            ),
+          },
+        ]
+
         updateConfig({
           vite: {
             // .astro and .tsx ship as source, so Vite has to compile them
             // rather than hand the file to the Node loader.
             ssr: { noExternal: [NAME] },
-            // Excluded from dependency pre-bundling, not just from SSR
-            // externalisation. Pre-bundling runs esbuild directly and never
-            // calls a plugin's resolveId, so it cannot resolve the virtual
-            // modules these files import — and it only kicks in once the
-            // package is a real directory in node_modules, which is why a
-            // linked checkout never hit it and a git install did.
-            optimizeDeps: { exclude: [NAME] },
-            // A linked checkout of this package sits outside the project root,
-            // and the dev server refuses to serve a client island from there.
-            // The root is listed too because naming `allow` at all replaces
-            // Vite's default rather than adding to it. Harmless once installed
-            // from the registry, where the package is already inside
-            // node_modules.
-            server: { fs: { allow: [root, packageRoot] } },
-            plugins: [
-              {
-                name: 'form-console:virtual',
-                resolveId(id: string) {
-                  if (id.startsWith('virtual:form-pro/')) return '\0' + id
-                  return null
-                },
-                load(id: string) {
-                  if (id === '\0virtual:form-pro/config') {
-                    // Re-exported rather than copied: the console reads exactly
-                    // the module the site's own form reads, so a preview can
-                    // never describe a config the form is not using.
-                    //
-                    // ZIP_LOOKUP_ORDER is defaulted here rather than left
-                    // missing, because a single-location site has nothing to
-                    // order and should not have to say so. An explicit export
-                    // wins over the star, so a site that does declare one keeps
-                    // it.
-                    return [
-                      `export * from ${JSON.stringify(configPath)}`,
-                      // Whether the site declares an order is settled here, by
-                      // reading the file, rather than by reaching for a named
-                      // export that may not exist — which the bundler is right
-                      // to warn about.
-                      declaresLookupOrder
-                        ? ''
-                        : [
-                            `import { LOCATIONS as __locations } from ${JSON.stringify(configPath)}`,
-                            `export const ZIP_LOOKUP_ORDER = Object.keys(__locations)`,
-                          ].join('\n'),
-                    ].join('\n')
-                  }
-                  if (id === '\0virtual:form-pro/options') {
-                    return `export default ${JSON.stringify(resolved)}`
-                  }
-                  if (id === '\0virtual:form-pro/mail') {
-                    // No transport configured: rendering still works, and
-                    // anything that would send says so rather than silently
-                    // dropping the message.
-                    return mailPath
-                      ? `export { sendEmail } from ${JSON.stringify(mailPath)}`
-                      : `export const sendEmail = async () => {
-                           throw new Error(
-                             'form-console: no mail transport configured. Pass mail: "./src/utils/sendEmail.ts" to the integration.'
-                           )
-                         }`
-                  }
-                  if (id === '\0virtual:form-pro/db') return dbSource
-                  if (id === '\0virtual:form-pro/env') {
-                    return envPath
-                      ? `export { readEnv } from ${JSON.stringify(envPath)}`
-                      : envModule(adapter)
-                  }
-                  if (id === '\0virtual:form-pro/logo') {
-                    return logoPath
-                      ? `export { getEmailLogoUrl } from ${JSON.stringify(logoPath)}`
-                      : `import options from 'virtual:form-pro/options'
-                         export const getEmailLogoUrl = async () => options.logo`
-                  }
-                  if (id === '\0virtual:form-pro/quoting') {
-                    return `export * from ${JSON.stringify(quotingPath ?? 'virtual:quoting')}`
-                  }
-                  return null
-                },
-              },
-            ],
+            resolve: { alias },
           },
         })
 

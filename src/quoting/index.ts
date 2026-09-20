@@ -7,6 +7,7 @@
 
 import type { AstroIntegration } from 'astro'
 import { fileURLToPath } from 'node:url'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { loadEnv } from 'vite'
 import { adapterKind, envModule } from '../generated.ts'
@@ -42,15 +43,6 @@ export interface QuoteExperienceOptions {
 }
 
 const NAME = '@golumin/form-pro/quoting'
-const VIRTUAL_ID = 'virtual:quoting'
-const RESOLVED_VIRTUAL_ID = '\0' + VIRTUAL_ID
-const CONFIG_ID = 'virtual:quoting/config'
-const RESOLVED_CONFIG_ID = '\0' + CONFIG_ID
-// Its own id rather than the console's, so the quoting integration works on a
-// site that has not installed the console.
-const ENV_ID = 'virtual:form-pro/quoting-env'
-const RESOLVED_ENV_ID = '\0' + ENV_ID
-
 const TYPES = `declare module 'virtual:quoting' {
   import type {
     QuoteConfig,
@@ -125,74 +117,64 @@ export default function quoteExperience(
         const envPath = options.env ? path.resolve(root, options.env) : null
         const envSource = envModule(adapterKind(config.adapter?.name))
 
+        // Written to disk and aliased rather than served as `virtual:` ids, for
+        // the same reason the console's modules are: a plugin's resolveId is
+        // never consulted for an import inside node_modules, so a published
+        // install would hand these straight to esbuild.
+        const generatedDir = path.join(root, '.astro', 'form-pro')
+        mkdirSync(generatedDir, { recursive: true })
+        const emit = (name: string, contents: string): string => {
+          const file = path.join(generatedDir, `${name}.mjs`)
+          const next = `${contents.trim()}\n`
+          try {
+            if (readFileSync(file, 'utf8') === next) return file
+          } catch {
+            // Not written yet.
+          }
+          writeFileSync(file, next)
+          return file
+        }
+
+        const envFile = emit(
+          'quoting-env',
+          envPath ? `export { readEnv } from ${JSON.stringify(envPath)}` : envSource
+        )
+
         updateConfig({
           vite: {
             ssr: { noExternal: ['@golumin/form-pro'] },
-            // Excluded from dependency pre-bundling, not just from SSR
-            // externalisation. Pre-bundling runs esbuild directly and never
-            // calls a plugin's resolveId, so it cannot resolve the virtual
-            // modules these files import — and it only kicks in once the
-            // package is a real directory in node_modules, which is why a
-            // linked checkout never hit it and a git install did.
-            optimizeDeps: { exclude: ['@golumin/form-pro'] },
-            plugins: [
-              {
-                name: 'form-pro:quoting',
-                resolveId(id) {
-                  if (id === VIRTUAL_ID) return RESOLVED_VIRTUAL_ID
-                  if (id === CONFIG_ID) return RESOLVED_CONFIG_ID
-                  if (id === ENV_ID) return RESOLVED_ENV_ID
-                  return null
-                },
-                load(id) {
-                  if (id === RESOLVED_ENV_ID) return envSource
-                  if (id === RESOLVED_CONFIG_ID) {
-                    // Presentation only — safe anywhere, including the browser.
-                    return `export default ${JSON.stringify({ phones, logo })};`
-                  }
-                  if (id !== RESOLVED_VIRTUAL_ID) return null
-
-                  // A build for the browser must not get this module at all.
-                  // There is no secret in it to leak any more, but a client that
-                  // silently cannot authenticate is worse than a build that
-                  // stops and names the file importing it.
-                  //
-                  // Only the `client` environment is refused: Astro runs the
-                  // server through both `ssr` and `prerender`, and a page that
-                  // prerenders a quote is doing so on the server.
-                  const environment = (this as { environment?: { name?: string } })
-                    .environment?.name
-                  if (environment === 'client') {
-                    this.error(
-                      `${VIRTUAL_ID} is a server module and was imported from ` +
-                        `the "${environment}" build. Move the import into a ` +
-                        `component's frontmatter, an endpoint, or an action.`
-                    )
-                  }
-
-                  return [
+            resolve: {
+              // Anchored patterns in array form: a string alias matches by
+              // prefix, so `virtual:quoting/config` would resolve under
+              // `virtual:quoting`'s file.
+              alias: [
+                { find: /^virtual:quoting$/, replacement: emit(
+                  'quoting-client',
+                  [
                     // A package specifier, not a machine-local path to a .ts
                     // file: the published layout has to resolve this too.
-                    `import { createQuotingClient, formatCents } from '@golumin/form-pro/quoting/client';`,
-                    envPath ? '' : `import { readEnv as __formProEnv } from 'virtual:form-pro/quoting-env';`,
-                    envPath
-                      ? `import { readEnv } from ${JSON.stringify(envPath)};`
-                      : `const readEnv = (n) => __formProEnv(n);`,
+                    `import { createQuotingClient, formatCents } from '@golumin/form-pro/quoting/client'`,
+                    `import { readEnv } from ${JSON.stringify(envFile)}`,
                     `const client = createQuotingClient({`,
                     `  baseUrl: ${JSON.stringify(baseUrl)},`,
                     `  tokenEnv: ${JSON.stringify(tokenEnv)},`,
                     `  readEnv,`,
-                    `});`,
-                    `export const previewQuote = client.previewQuote;`,
-                    `export const createQuote = client.createQuote;`,
-                    `export const getQuote = client.getQuote;`,
-                    `export const getForm = client.getForm;`,
-                    `export const getConfig = client.getConfig;`,
-                    `export { formatCents };`,
+                    `})`,
+                    `export const previewQuote = client.previewQuote`,
+                    `export const createQuote = client.createQuote`,
+                    `export const getQuote = client.getQuote`,
+                    `export const getForm = client.getForm`,
+                    `export const getConfig = client.getConfig`,
+                    `export { formatCents }`,
                   ].join('\n')
-                },
-              },
-            ],
+                ) },
+                { find: /^virtual:quoting\/config$/, replacement: emit(
+                  'quoting-config',
+                  // Presentation only — safe anywhere, including the browser.
+                  `export default ${JSON.stringify({ phones, logo })}`
+                ) },
+              ],
+            },
           },
         })
       },
