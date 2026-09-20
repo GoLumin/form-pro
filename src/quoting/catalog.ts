@@ -1,5 +1,7 @@
-// Small pure readings of a gofuse catalog that both the emails and the daily
-// check need, kept here so neither has to reach into a site's own lib.
+// Small pure readings of a gofuse catalog, used by the quoting adapter and the
+// daily check. Nothing outside src/quoting imports this: it is the one place
+// that knows what a container is, and a site that prices nothing never loads
+// it.
 
 /**
  * A gofuse product's size as a quote form names it: "16' × 8' × 8'" -> "16x8".
@@ -118,22 +120,4 @@ export function selectProductForSize({
     candidates.filter((p) => p.lengthFt <= requestedLength).pop() ??
     candidates[0]
   )
-}
-
-/** A date input's value as mm/dd/yyyy, the one shape the rest of this reads. */
-export function formatDate(date: unknown): string {
-  if (date == null || date === '') return ''
-  const d = new Date(String(date))
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`
-}
-
-/** The form's service names, as gofuse's API spells them. */
-export const QUOTING_SERVICE_TYPE: Record<string, string> = {
-  keep_it: 'keep-it',
-  move_it: 'move-it',
-  store_it: 'store-it',
-  store_it_indoor: 'store-it',
-  store_it_outdoor: 'store-it',
 }

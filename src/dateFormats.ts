@@ -57,3 +57,19 @@ export function formatDateAs(value: string, format: string): string {
       return `${pad(month)}/${pad(day)}/${year}`
   }
 }
+
+/**
+ * Whatever a date input produced, as the mm/dd/yyyy the rest of this reads.
+ *
+ * `yyyy-mm-dd` is what an `<input type="date">` and a calendar both hand over;
+ * it is rewritten field by field rather than parsed, because a plain date has
+ * no timezone and `new Date('2026-10-01')` lands on UTC midnight — the day
+ * before, anywhere west of it. Anything already mm/dd/yyyy, or not a date at
+ * all, passes straight through.
+ */
+export function normalizeDate(value: string): string {
+  const text = String(value ?? '').trim()
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
+  if (iso) return `${iso[2]}/${iso[3]}/${iso[1]}`
+  return text
+}

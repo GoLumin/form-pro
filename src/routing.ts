@@ -1,143 +1,147 @@
-// Which location quotes a submission. Everything a location *is* — its gofuse
-// instance, its email envelopes, its CRM webhook and keys — is declared in the
-// site's own config; this file only decides which of them applies.
+// Which profile handles a submission. Everything a profile *is* — its
+// envelopes, its copy, its CRM webhook and keys — is declared in the site's own
+// config; this file only decides which of them applies.
 //
-// A single-location site never leaves its one entry, so the lookup below costs
-// it nothing. The multi-market path exists because a ZIP typed on one market's
-// page may belong to another, and the lead must be priced, emailed and filed by
-// the market that actually serves the address.
+// A site with one profile never leaves it, so the lookup below costs it
+// nothing. The other strategies exist because a value typed on one page may
+// belong to another profile, and the lead must be emailed and filed by the
+// profile that actually owns it.
 
-import { LOCATIONS, ZIP_LOOKUP_ORDER } from 'virtual:form-pro/config'
-import type { Location } from './types.ts'
+import { PROFILES, ROUTING } from 'virtual:form-pro/config'
+import type { Lead } from './fields.ts'
+import type { Profile, RoutingConfig } from './types.ts'
 
-export function getLocation(slug: string | null | undefined): Location | null {
+export function getProfile(slug: string | null | undefined): Profile | null {
   if (!slug) return null
-  return LOCATIONS[slug.replace(/^\/+|\/+$/g, '')] ?? null
+  return PROFILES[slug.replace(/^\/+|\/+$/g, '')] ?? null
 }
 
-/** The order locations are asked in; the first that serves a ZIP wins. */
-export function lookupOrder(): string[] {
-  return ZIP_LOOKUP_ORDER
+export function allProfiles(): Profile[] {
+  return Object.values(PROFILES)
 }
 
-/** The only location, when a site has exactly one. */
-export function soleLocation(): Location | null {
-  const all = Object.values(LOCATIONS)
+/** The only profile, when a site has exactly one. */
+export function soleProfile(): Profile | null {
+  const all = allProfiles()
   return all.length === 1 ? all[0] : null
 }
 
-/** A ZIP is five digits; anything shorter can't be looked up yet. */
-export function isCompleteZip(zip: string): boolean {
-  return /^\d{5}$/.test(zip.trim())
+/**
+ * The site's strategy, defaulted.
+ *
+ * A site with one profile has nothing to route between and should not have to
+ * say so; one with several is assumed to give each its own page until it says
+ * otherwise. Both defaults answer without a network call, which is the right
+ * behaviour for a site that has not opted into one.
+ */
+export function routing(): RoutingConfig {
+  if (ROUTING) return ROUTING
+  return soleProfile() ? { kind: 'single' } : { kind: 'page' }
+}
+
+/** The order profiles are asked in; the first that covers a value wins. */
+function lookupOrder(config: Extract<RoutingConfig, { kind: 'lookup' }>): string[] {
+  return config.order ?? Object.keys(PROFILES)
+}
+
+/** A value long enough to be worth looking up. */
+export function isLookupReady(value: string, config: RoutingConfig): boolean {
+  if (config.kind !== 'lookup') return true
+  return value.trim().length >= (config.minLength ?? 1)
 }
 
 /**
- * Asks one location's gofuse instance whether it serves `zip`.
+ * The profile that covers `value`, or `null` when none do.
  *
- * A location with no `baseUrl` of its own is on a site whose quoting
- * integration already points at one instance; there is nothing to choose
- * between, so it serves whatever that instance serves.
+ * A profile whose probe errors is skipped rather than failing the lookup: one
+ * back end being down shouldn't hide a value that belongs to another. If every
+ * probe errors the caller gets a rejection instead of a false "we don't serve
+ * you", which would be the wrong thing to tell a visitor.
  */
-async function locationServesZip(location: Location, zip: string): Promise<boolean> {
-  if (!location.baseUrl) return true
-  const response = await fetch(
-    `${location.baseUrl}/zip_codes/fetch?zip=${encodeURIComponent(zip)}`
-  )
-  if (!response.ok) {
-    throw new Error(`${location.slug} ZIP lookup failed (${response.status})`)
-  }
-  // The endpoint answers with a bare `true` / `false` JSON body.
-  return (await response.json()) === true
-}
-
-/**
- * Resolves a ZIP to the location that serves it, or `null` when none do.
- *
- * A location whose instance errors is skipped rather than failing the lookup:
- * one backend being down shouldn't hide a ZIP that belongs to another. If every
- * instance errors the caller gets a rejection instead of a false "we don't
- * serve you", which would be the wrong thing to tell a visitor.
- */
-export async function findQuoteLocationForZip(
-  zip: string,
+export async function findProfileFor(
+  value: string,
+  config: Extract<RoutingConfig, { kind: 'lookup' }>,
   options: { skip?: string } = {}
-): Promise<Location | null> {
-  const trimmed = zip.trim()
-  if (!isCompleteZip(trimmed)) return null
+): Promise<Profile | null> {
+  const trimmed = value.trim()
+  if (!isLookupReady(trimmed, config)) return null
 
-  // `skip` drops a location that has already been asked, so it is neither
+  // `skip` drops a profile that has already been asked, so it is neither
   // re-queried nor counted towards the all-failed check below — otherwise a
-  // location page whose own market answered "no" would mask the others being
-  // down and the visitor would be told we don't serve them.
-  const slugs = lookupOrder().filter((slug) => slug !== options.skip)
+  // page whose own profile answered "no" would mask the others being down and
+  // the visitor would be told we don't cover them.
+  const slugs = lookupOrder(config).filter((slug) => slug !== options.skip)
 
   let failures = 0
 
   for (const slug of slugs) {
-    const location = LOCATIONS[slug]
-    if (!location) continue
+    const profile = PROFILES[slug]
+    if (!profile) continue
     try {
-      if (await locationServesZip(location, trimmed)) return location
+      if (await config.probe(trimmed, profile)) return profile
     } catch (error) {
       failures += 1
-      console.error(`ZIP lookup failed for ${slug}:`, error)
+      console.error(`coverage lookup failed for ${slug}:`, error)
     }
   }
 
   if (slugs.length > 0 && failures === slugs.length) {
-    throw new Error('Unable to check ZIP coverage right now')
+    throw new Error('Unable to check coverage right now')
   }
 
   return null
 }
 
 /**
- * The location that should quote a submission, given the page it was made from
- * and the delivery ZIP. This is the single answer the form's coverage check and
- * the quote action both work from, so the market named under the ZIP field is
- * the market that ends up pricing, emailing and posting the lead.
+ * The profile that should handle a submission, given the page it was made from
+ * and what has been filled in. This is the single answer the form's coverage
+ * check and the submit action both work from, so the profile named under the
+ * deciding field is the profile that ends up emailing and filing the lead.
  *
- * A location page keeps its own market whenever that market actually covers the
- * ZIP — an in-area visitor is never handed off just because another market also
- * serves the ZIP and is asked earlier. When the page's market does not cover
- * it, the submission resolves by ZIP exactly as one from the home page does.
+ * A page keeps its own profile whenever that profile actually covers the value
+ * — an in-area visitor is never handed off just because another profile also
+ * covers it and is asked earlier. When the page's profile does not cover it,
+ * the submission resolves by value exactly as one from a generic page does.
  *
- * Coverage that can't be determined falls back to the page's own market rather
- * than refusing: an instance being down must not cost that market a lead it
- * already had in hand. Null — "we don't serve this area" — is returned only on
- * a real answer that no location covers the ZIP.
+ * Coverage that can't be determined falls back to the page's own profile rather
+ * than refusing: a back end being down must not cost that profile a lead it
+ * already had in hand. Null — "we don't handle this" — is returned only on a
+ * real answer that no profile covers the value.
  */
-export async function resolveQuoteLocation(
+export async function resolveProfile(
   pageSlug: string | null | undefined,
-  zip: string
-): Promise<Location | null> {
-  // One location and nothing to route between: it is always the answer, and a
-  // coverage refusal stays where it already lives on those sites.
-  const sole = soleLocation()
-  if (sole) return sole
+  values: Lead
+): Promise<Profile | null> {
+  const config = routing()
 
-  const pageLocation = getLocation(pageSlug)
-  if (!pageLocation) return findQuoteLocationForZip(zip)
+  // One profile and nothing to route between: it is always the answer.
+  const sole = soleProfile()
+  if (sole || config.kind === 'single') return sole ?? allProfiles()[0] ?? null
 
-  const trimmed = zip.trim()
-  // Nothing to resolve against yet; the page's market is the right default
-  // until the visitor has typed a full ZIP.
-  if (!isCompleteZip(trimmed)) return pageLocation
+  const pageProfile = getProfile(pageSlug)
+  if (config.kind === 'page') return pageProfile
+
+  const value = String(values[config.field] ?? '').trim()
+  if (!pageProfile) return findProfileFor(value, config)
+
+  // Nothing to resolve against yet; the page's own profile is the right default
+  // until the visitor has finished typing.
+  if (!isLookupReady(value, config)) return pageProfile
 
   try {
-    if (await locationServesZip(pageLocation, trimmed)) return pageLocation
+    if (await config.probe(value, pageProfile)) return pageProfile
   } catch (error) {
-    console.error(`ZIP lookup failed for ${pageLocation.slug}:`, error)
-    return pageLocation
+    console.error(`coverage lookup failed for ${pageProfile.slug}:`, error)
+    return pageProfile
   }
 
   try {
-    return await findQuoteLocationForZip(trimmed, { skip: pageLocation.slug })
+    return await findProfileFor(value, config, { skip: pageProfile.slug })
   } catch (error) {
-    // Every other location errored, so there is no answer to act on. The page's
-    // own market did say no, but quoting the visitor where they started beats
+    // Every other profile errored, so there is no answer to act on. The page's
+    // own profile did say no, but handling the visitor where they started beats
     // turning them away on an outage.
-    console.error('ZIP coverage lookup failed:', error)
-    return pageLocation
+    console.error('coverage lookup failed:', error)
+    return pageProfile
   }
 }

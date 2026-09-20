@@ -1,79 +1,83 @@
-// Everything the form needs to know about a ZIP, in one call: whether we serve
-// it, which location will quote it, the container sizes that location actually
-// stocks, and which storage variants it sells.
+// Everything the form needs once a routing value is complete: which profile
+// will handle it, and which options each of its choice fields actually offers.
 //
-// Server-side because the sizes come from gofuse, whose catalog needs a Bearer
-// token that must not reach the browser. That is the point of routing it
-// through here: the dropdown and the quote read the same catalog, so the form
-// can no longer offer a size the quote cannot price.
+// Server-side because a catalog-backed list usually needs a key that must not
+// reach the browser. That is the point of routing it through here: the dropdown
+// and the submission read the same source, so the form can no longer offer
+// something the back end cannot accept.
 
 import type { APIRoute } from 'astro'
 import { authorize, json } from './_shared.ts'
-import { getConfig } from 'virtual:form-pro/quoting'
-import { containerSizeLabel, QUOTING_SERVICE_TYPE } from '../../catalog.ts'
-import { isCompleteZip, resolveQuoteLocation } from '../../routing.ts'
+import { FIELDS, QUOTING } from 'virtual:form-pro/config'
+import { buildLead, optionsFor } from '../../fields.ts'
+import { isLookupReady, resolveProfile, routing } from '../../routing.ts'
+import { catalogOptionsFor, quotingEnabled } from '../../quoting/submission.ts'
 
 export const prerender = false
 
 interface Body {
   token?: string
-  zip?: string
-  /** The location page the form sits on, if any. */
-  locationSlug?: string | null
+  /** Whatever has been filled in so far, keyed by field id. */
+  values?: Record<string, unknown>
+  /** The page the form sits on, if any. */
+  profileSlug?: string | null
 }
 
 export const POST: APIRoute = async (context) => {
   const checked = await authorize<Body>(context)
   if ('response' in checked) return checked.response
-  const { zip = '', locationSlug } = checked.body
+  const { values = {}, profileSlug } = checked.body
+
+  const lead = buildLead(FIELDS, values)
+  const config = routing()
 
   const empty = {
     served: false,
     slug: null,
     name: null,
     incomplete: true,
-    sizesByService: {} as Record<string, string[]>,
-    storageOptions: [] as string[],
+    fieldOptions: {} as Record<string, string[]>,
+    catalog: null as null | { field: string; dependsOn: string; byValue: Record<string, string[]> },
   }
-  if (!isCompleteZip(zip)) return json(empty)
 
-  const location = await resolveQuoteLocation(locationSlug, zip)
-  if (!location) return json({ ...empty, incomplete: false })
+  if (config.kind === 'lookup' && !isLookupReady(String(lead[config.field] ?? ''), config)) {
+    return json(empty)
+  }
 
-  // Sizes for every service in one request, so switching tab doesn't cost
-  // another round trip — the form already has the answer.
-  const sizesByService: Record<string, string[]> = {}
-  try {
-    const config = await getConfig(
-      { zip_code: zip.trim() },
-      location.baseUrl ? { baseUrl: location.baseUrl, token: location.token } : undefined
+  const profile = await resolveProfile(profileSlug, lead)
+  if (!profile) return json({ ...empty, incomplete: false })
+
+  // What this profile sells, as the config declares it: the general case, and
+  // the only one on a site with no catalog behind it.
+  const fieldOptions: Record<string, string[]> = {}
+  for (const field of FIELDS) {
+    if (field.type !== 'choice') continue
+    fieldOptions[field.id] = optionsFor(field, profile.fieldOptions?.[field.id]).map(
+      (o) => o.value
     )
-    for (const [formService, apiService] of Object.entries(QUOTING_SERVICE_TYPE)) {
-      if (formService.startsWith('store_it_')) continue
-      const sizes = new Set<string>()
-      for (const product of config?.products ?? []) {
-        if (!product.service_types?.includes(apiService)) continue
-        if (product.product_type && product.product_type !== 'portable-storage') continue
-        const label = containerSizeLabel(product)
-        if (label) sizes.add(label)
+  }
+
+  let catalog = empty.catalog
+  if (QUOTING?.catalogOptions && quotingEnabled()) {
+    try {
+      catalog = {
+        ...QUOTING.catalogOptions,
+        byValue: await catalogOptionsFor({ profile, fields: FIELDS, lead, config: QUOTING }),
       }
-      sizesByService[formService] = [...sizes].sort(
-        (a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10)
-      )
+    } catch (error) {
+      // The form shows no options and the visitor cannot pick one, which is the
+      // honest outcome: without the catalog we do not know what this profile
+      // stocks, and guessing would offer something it cannot price.
+      console.error(`catalog lookup failed for ${profile.slug}:`, error)
     }
-  } catch (error) {
-    // The form shows "no sizes available" and the visitor cannot pick one,
-    // which is the honest outcome: without the catalog we do not know what this
-    // location stocks, and guessing would offer a box it cannot price.
-    console.error(`catalog lookup failed for ${location.slug}:`, error)
   }
 
   return json({
     served: true,
-    slug: location.slug,
-    name: location.name,
+    slug: profile.slug,
+    name: profile.name,
     incomplete: false,
-    sizesByService,
-    storageOptions: [...location.storageOptions],
+    fieldOptions,
+    catalog,
   })
 }

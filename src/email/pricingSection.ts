@@ -28,22 +28,22 @@ export interface EmailTransitFee {
 }
 
 export interface EmailPricing {
-  /** The gofuse product name, e.g. "16' x 8'". */
+  /** What is being priced, as the pricing back end names it. */
   productName: string
   /**
    * Cents billed every month from the second month on — the undiscounted rate
-   * whenever a promo applies, since gofuse's discounts run for the first month
-   * only.
+   * whenever a promo applies, for a back end whose discounts run for the first
+   * month only.
    */
   monthly: number
   /** Cents billed for the first month; null when nothing is discounted. */
   firstMonth: number | null
-  /** gofuse's own label for the promo, shown next to the first-month price. */
+  /** The back end's own label for the promo, next to the first-month price. */
   discountLabel: string | null
-  /** gofuse's wording for the up-front figure, e.g. "Total Due at Delivery". */
+  /** Its wording for the up-front figure, e.g. "Total Due at Delivery". */
   dueLabel: string
   dueBeforeDelivery: number
-  /** Cents in fees gofuse excludes from the total and bills separately. */
+  /** Cents in fees excluded from the total and billed separately. */
   totalFeesSeparate: number
   transit: EmailTransitFee[]
 }
@@ -78,8 +78,10 @@ export function renderPricingSection(
   labels: EmailLabels['pricing'],
   mark = false
 ): string {
-  if (!pricing) return ''
-  const L = (key: keyof EmailLabels['pricing'], vars: Record<string, string> = {}) =>
+  // No figures, or a site that prices nothing and so declares no wording for
+  // it: either way there is no block, rather than an empty one.
+  if (!pricing || !labels) return ''
+  const L = (key: keyof NonNullable<EmailLabels['pricing']>, vars: Record<string, string> = {}) =>
     label(`pricing.${key}`, fill(labels[key], vars, mark), mark)
 
   // The discount is a first-month promotion, so the email spells both figures

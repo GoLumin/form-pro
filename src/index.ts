@@ -303,6 +303,25 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
             ),
           },
           {
+            find: /^virtual:form-pro\/assets$/,
+            replacement: emit(
+              'assets',
+              // Read here and written out as strings. The console's bundle is
+              // built with this package, so its contents are fixed by the time
+              // a site builds.
+              ['js', 'signinJs', 'css']
+                .map((name, i) => {
+                  const file = ['console.js', 'signin.js', 'console.css'][i]
+                  const body = readFileSync(
+                    fileURLToPath(new URL(`./console/${file}`, import.meta.url)),
+                    'utf8'
+                  )
+                  return `export const ${name} = ${JSON.stringify(body)}`
+                })
+                .join('\n')
+            ),
+          },
+          {
             find: /^virtual:form-pro\/quoting$/,
             replacement: emit(
               'quoting',

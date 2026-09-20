@@ -5,13 +5,17 @@
 // inlined into the page, so a browser caches them between visits instead of
 // re-downloading React on every load.
 //
-// Imported with ?raw, which makes the contents part of the server bundle: there
-// is no filesystem read at request time, so this works unchanged on a Worker.
+// The contents arrive as a generated module, so they are part of the server
+// bundle: there is no filesystem read at request time and this works unchanged
+// on a Worker.
+//
+// Generated rather than imported with `?raw`, because `?raw` is a Vite feature
+// and this file is scanned by esbuild once the package is installed rather than
+// linked — at which point the suffix is just part of a filename that does not
+// exist.
 
 import type { APIRoute } from 'astro'
-import js from '../console/console.js?raw'
-import signinJs from '../console/signin.js?raw'
-import css from '../console/console.css?raw'
+import { css, js, signinJs } from 'virtual:form-pro/assets'
 
 export const prerender = false
 

@@ -1,4 +1,4 @@
-// One location's email rendered exactly as it would send, with every editable
+// One profile's email rendered exactly as it would send, with every editable
 // string wrapped in [data-copy-key] and every {placeholder} in [data-var].
 //
 // The editor makes those spans contenteditable and reads the template back out
@@ -7,9 +7,11 @@
 
 import type { APIRoute } from 'astro'
 import { authorize, fail, json, logoUrlFor } from './_shared.ts'
-import { LOCATIONS, EMAIL_LABELS } from 'virtual:form-pro/config'
-import { emailSubjectFor, resolveEnvelope, serviceLabel } from '../../config.ts'
-import { renderQuoteEmails } from '../../email/quoteEmails.ts'
+import { EMAIL_LABELS, FIELDS, PROFILES } from 'virtual:form-pro/config'
+import { emailSubjectFor, resolveEnvelope } from '../../config.ts'
+import { sampleLead } from '../../fields.ts'
+import { renderLeadEmails } from '../../email/leadEmails.ts'
+import type { EmailPricing } from '../../email/pricingSection.ts'
 
 export const prerender = false
 
@@ -19,46 +21,48 @@ interface Body {
   kind?: 'client' | 'admin'
 }
 
+/**
+ * Figures for the preview, so the block can be read and edited before any real
+ * quote exists. Built here rather than fetched: a preview that had to price
+ * something would cost money to open.
+ */
+const SAMPLE_PRICING: EmailPricing = {
+  productName: 'Your order',
+  monthly: 23900,
+  firstMonth: 18900,
+  discountLabel: '$50 OFF FIRST MONTH',
+  dueLabel: 'Total Due at Delivery',
+  dueBeforeDelivery: 33800,
+  totalFeesSeparate: 0,
+  transit: [{ name: 'Delivery', amount: 14900, startingAt: true, excludedFromTotal: false }],
+}
+
 export const POST: APIRoute = async (context) => {
   const checked = await authorize<Body>(context)
   if ('response' in checked) return checked.response
   const { slug, kind } = checked.body
 
-  const location = LOCATIONS[String(slug ?? '')]
-  if (!location) return fail('No such location')
+  const profile = PROFILES[String(slug ?? '')]
+  if (!profile) return fail('No such profile')
 
   // Representative values, so the preview shows a real-looking email rather
-  // than empty rows.
-  const rendered = renderQuoteEmails({
-    clientEmail: resolveEnvelope(location.clientEmail, 'ada@example.com'),
-    adminEmail: resolveEnvelope(location.adminEmail, 'ada@example.com'),
-    email: 'ada@example.com',
-    emailSubject: emailSubjectFor(location, 'keep_it'),
-    brand: location.name,
-    responsePromise: location.emailResponsePromise,
-    footerLines: location.emailFooterLines,
-    clientCopy: location.clientCopy,
-    adminCopy: location.adminCopy,
+  // than empty rows. A field with no sample falls back to its first option.
+  const lead = sampleLead(FIELDS)
+
+  const emailField = FIELDS.find((f) => f.type === 'email')
+  const leadEmail = (emailField && lead[emailField.id]) || 'ada@example.com'
+
+  const rendered = renderLeadEmails({
+    clientEmail: resolveEnvelope(profile.clientEmail, leadEmail),
+    adminEmail: resolveEnvelope(profile.adminEmail, leadEmail),
+    emailSubject: emailSubjectFor(profile, EMAIL_LABELS, FIELDS, lead),
+    profile,
+    fields: FIELDS,
+    lead,
     labels: EMAIL_LABELS,
     markEditable: true,
-    formTypeName: serviceLabel('keep_it'),
-    firstName: 'Ada',
-    fullName: 'Ada Lovelace',
-    phone: '(555) 010-4142',
-    initialDeliveryZip: '00000',
-    initialDeliveryDate: '10/01/2026',
-    storageType: null,
-    containerSize: '16x8',
-    companyPhone: location.phoneNumber,
-    quote: {
-      products: [
-        { name: "16' x 8' Mule Box", quantity: 1, subtotal: 18900, original_price: 23900 },
-      ],
-      fees: [{ name: 'Delivery', amount: 14900, starting_at: true }],
-      total: 33800,
-      totalLabel: 'Total Due at Delivery',
-      discountLabel: '$50 OFF FIRST MONTH',
-    },
+    // Only a site that has pricing wording has a pricing block to preview.
+    pricing: EMAIL_LABELS.pricing ? SAMPLE_PRICING : null,
     logoUrl: await logoUrlFor(context),
   })
 

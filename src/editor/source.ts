@@ -1,18 +1,20 @@
 import options from 'virtual:form-pro/options'
-import { EMAIL_LABELS, LOCATIONS, SITE_SETTINGS } from 'virtual:form-pro/config'
-import type { EmailLabels, Location } from '../types.ts'
+import { EMAIL_LABELS, FIELDS, PROFILES, SITE_SETTINGS } from 'virtual:form-pro/config'
+import type { FieldDef } from '../fields.ts'
+import type { EmailLabels, Profile } from '../types.ts'
 
 /**
  * Reads and writes the editable values in the site's config module.
  *
  * Reading is free: the module is already imported, so the current values come
- * straight off LOCATIONS rather than being parsed back out of the source.
+ * straight off PROFILES rather than being parsed back out of the source.
  *
  * Writing edits the source file in place, one field on one line, inside the
- * block belonging to one market. It deliberately does NOT regenerate the file:
+ * block belonging to one profile. It deliberately does NOT regenerate the file:
  * most of what is in there is the comments explaining why a value is what it
- * is — which webhook a key belongs to, why Bay Area sends from its own domain —
- * and regenerating would throw all of that away the first time anyone saved.
+ * is — which webhook a key belongs to, why one profile sends from its own
+ * domain — and regenerating would throw all of that away the first time anyone
+ * saved.
  *
  * Only ever works on a dev server. A deployed build has a read-only filesystem
  * and is running compiled output, so a write there would change nothing and
@@ -20,22 +22,22 @@ import type { EmailLabels, Location } from '../types.ts'
  */
 
 /** The fields the form can change. Anything else stays a code edit. */
-export interface EditableLocation {
+export interface EditableProfile {
   slug: string
   name: string
   emailBrand: string
   phoneNumber: string
   emailResponsePromise: string
   emailFooterLines: string[]
-  storageOptions: string[]
+  /** Which of each choice field's options this profile offers, by field id. */
+  fieldOptions: Record<string, string[]>
   webhookUrl: string
   clientEmail: { fromName: string; fromAddress: string; to: string[]; ccs: string[] }
   adminEmail: { fromName: string; fromAddress: string; to: string[]; ccs: string[] }
-  clientCopy: Location['clientCopy']
-  adminCopy: Location['adminCopy']
-  /** The webhook's keys, editable. They must match Stella's Fields Mapping. */
+  clientCopy: Profile['clientCopy']
+  adminCopy: Profile['adminCopy']
+  /** The webhook's keys, editable. They must match the CRM's field mapping. */
   webhookKeys: EditableKey[]
-  baseUrl: string
 }
 
 /** One webhook key, in the shape the editor's form works with. */
@@ -47,7 +49,7 @@ export interface EditableKey {
   value: string
   /** '' for none, otherwise a named transform like date:mm/dd/yyyy. */
   transform: string
-  /** Per-source-value translation, for serviceType and storageType. */
+  /** Per-source-value translation, for the choice fields. */
   map: Record<string, string>
   /** Whether the key declares a fallback at all, apart from what it is. */
   hasWhenEmpty: boolean
@@ -56,7 +58,7 @@ export interface EditableKey {
 
 function toEditableKey(key: string, spec: unknown): EditableKey {
   const o = (spec ?? {}) as Record<string, unknown>
-  const base: EditableKey = {
+  return {
     key,
     mode: 'value' in o ? 'value' : 'field',
     from: typeof o.from === 'string' ? o.from : '',
@@ -66,52 +68,64 @@ function toEditableKey(key: string, spec: unknown): EditableKey {
     hasWhenEmpty: o.whenEmpty != null,
     whenEmpty: typeof o.whenEmpty === 'string' ? o.whenEmpty : '',
   }
-  return base
 }
 
-export function toEditable(location: Location): EditableLocation {
+export function toEditable(profile: Profile): EditableProfile {
+  const fieldOptions: Record<string, string[]> = {}
+  for (const [id, values] of Object.entries(profile.fieldOptions ?? {})) {
+    fieldOptions[id] = [...values]
+  }
   return {
-    slug: location.slug,
-    name: location.name,
-    emailBrand: location.emailBrand,
-    phoneNumber: location.phoneNumber,
-    emailResponsePromise: location.emailResponsePromise,
-    emailFooterLines: [...location.emailFooterLines],
-    storageOptions: [...location.storageOptions],
-    webhookUrl: location.webhook.url,
-    baseUrl: location.baseUrl,
-    clientCopy: { ...location.clientCopy },
-    adminCopy: { ...location.adminCopy },
+    slug: profile.slug,
+    name: profile.name,
+    emailBrand: profile.emailBrand,
+    phoneNumber: profile.phoneNumber,
+    emailResponsePromise: profile.emailResponsePromise,
+    emailFooterLines: [...profile.emailFooterLines],
+    fieldOptions,
+    webhookUrl: profile.webhook.url,
+    clientCopy: { ...profile.clientCopy },
+    adminCopy: { ...profile.adminCopy },
     clientEmail: {
-      fromName: location.clientEmail.fromName,
-      fromAddress: location.clientEmail.fromAddress,
-      to: [...location.clientEmail.to],
-      ccs: [...location.clientEmail.ccs],
+      fromName: profile.clientEmail.fromName,
+      fromAddress: profile.clientEmail.fromAddress,
+      to: [...profile.clientEmail.to],
+      ccs: [...profile.clientEmail.ccs],
     },
     adminEmail: {
-      fromName: location.adminEmail.fromName,
-      fromAddress: location.adminEmail.fromAddress,
-      to: [...location.adminEmail.to],
-      ccs: [...location.adminEmail.ccs],
+      fromName: profile.adminEmail.fromName,
+      fromAddress: profile.adminEmail.fromAddress,
+      to: [...profile.adminEmail.to],
+      ccs: [...profile.adminEmail.ccs],
     },
-    webhookKeys: Object.entries(location.webhook.keys).map(([key, spec]) =>
+    webhookKeys: Object.entries(profile.webhook.keys).map(([key, spec]) =>
       toEditableKey(key, spec)
     ),
   }
 }
 
-export function readEditable(): EditableLocation[] {
-  return Object.values(LOCATIONS).map(toEditable)
+export function readEditable(): EditableProfile[] {
+  return Object.values(PROFILES).map(toEditable)
+}
+
+/**
+ * The form's shape, for the console.
+ *
+ * Read-only apart from the labels: what a form collects is structure, and
+ * changing it means changing the webhook keys that draw from it and the page
+ * that renders it. The labels are copy, and those the console does write.
+ */
+export function readFields(): FieldDef[] {
+  return FIELDS.map((f) => ({ ...f }))
 }
 
 export type SiteSettings = typeof SITE_SETTINGS
 
-/** The settings that belong to the site rather than a market. */
+/** The settings that belong to the site rather than a profile. */
 export function readSettings(): SiteSettings {
   const settings = SITE_SETTINGS as SiteSettings & { consoleUsers?: string[] }
   return {
     ...settings,
-    franchiseAdminTo: [...settings.franchiseAdminTo],
     // Defaulted rather than required, because a site that predates console
     // sign-in has no such line yet and must still be able to save the settings
     // it does have.
@@ -119,42 +133,15 @@ export function readSettings(): SiteSettings {
   }
 }
 
-/**
- * Writes the SITE_SETTINGS block.
- *
- * Booleans are written bare and lists as array literals; everything else is a
- * string. Same one-line replacement and same refusal to guess as the rest.
- */
-export function applySettings(source: string, settings: SiteSettings): string {
-  let next = source
-  const open = next.indexOf('\nexport const SITE_SETTINGS = {\n')
-  if (open < 0) throw new Error(`SITE_SETTINGS: not found in ${SOURCE}`)
-  const close = next.indexOf('\n}\n', open)
-  if (close < 0) throw new Error('SITE_SETTINGS: not closed as expected')
-
-  let inner = next.slice(open, close)
-  for (const [key, value] of Object.entries(settings)) {
-    const literal =
-      typeof value === 'boolean'
-        ? String(value)
-        : Array.isArray(value)
-          ? `[${value.map((v) => str(String(v))).join(', ')}]`
-          : str(String(value))
-    // A key the file does not declare is skipped rather than invented. Settings
-    // gained fields over time, and a site that has not adopted one must still
-    // be able to save the ones it has — the Settings tab says which are absent.
-    if (!new RegExp(`\\n\\s*${key}:`).test(inner)) continue
-    inner = setField(inner, 0, inner.length, key, literal, '  ')
-  }
-  return next.slice(0, open) + inner + next.slice(close)
-}
-
-/** The wording shared by all four markets. */
+/** The wording shared by every profile. */
 export function readLabels(): EmailLabels {
   return {
     dateFormat: EMAIL_LABELS.dateFormat,
-    rows: { ...EMAIL_LABELS.rows },
-    pricing: { ...EMAIL_LABELS.pricing },
+    subjectTemplate: EMAIL_LABELS.subjectTemplate,
+    ...(EMAIL_LABELS.adminSubjectPrefix != null
+      ? { adminSubjectPrefix: EMAIL_LABELS.adminSubjectPrefix }
+      : {}),
+    ...(EMAIL_LABELS.pricing ? { pricing: { ...EMAIL_LABELS.pricing } } : {}),
   }
 }
 
@@ -178,7 +165,7 @@ function arr(values: string[], shared: Record<string, string>): string {
   return `[${values.map(str).join(', ')}]`
 }
 
-/** The span of one market's entry, from its key line to its closing brace. */
+/** The span of one profile's entry, from its key line to its closing brace. */
 function blockRange(source: string, slug: string): [number, number] {
   const key = /^[a-z]+$/.test(slug) ? slug : `'${slug}'`
   const open = source.indexOf(`\n  ${key}: {\n`)
@@ -190,7 +177,7 @@ function blockRange(source: string, slug: string): [number, number] {
 
 /**
  * The end of the value that starts at `start`: the index just past the comma
- * that closes it.
+ * that closes it, or at the bracket that closes the object holding it.
  *
  * Scans rather than pattern-matches, tracking bracket depth and string state,
  * because a value can span lines and contain commas of its own. A regex that
@@ -210,10 +197,14 @@ function valueEnd(block: string, start: number): number {
     }
     if (c === "'" || c === '"' || c === '`') quote = c
     else if (c === '[' || c === '{' || c === '(') depth += 1
-    else if (c === ']' || c === '}' || c === ')') depth -= 1
-    else if (c === ',' && depth === 0) return i + 1
+    else if (c === ']' || c === '}' || c === ')') {
+      // A closer we never opened ends the value: it belongs to the object this
+      // value sits in, which is what a trailing property has instead of a comma.
+      if (depth === 0) return i
+      depth -= 1
+    } else if (c === ',' && depth === 0) return i + 1
   }
-  throw new Error('value is not terminated by a comma')
+  throw new Error('value is not terminated')
 }
 
 /**
@@ -244,13 +235,70 @@ function setField(
   return source.slice(0, from) + replaced + source.slice(to)
 }
 
+/**
+ * The same replacement for a property that may sit inline — `{ id: 'x', label:
+ * 'y' }` — where there is no line start to anchor to and no trailing comma to
+ * stop at.
+ */
+function setInlineField(
+  source: string,
+  from: number,
+  to: number,
+  key: string,
+  value: string
+): string {
+  const block = source.slice(from, to)
+  const re = new RegExp(`(^|[{,\\s])${key}\\s*:`, 'm')
+  const found = block.match(re)
+  if (!found || found.index === undefined) {
+    throw new Error(`${key}: not found where expected`)
+  }
+  const at = found.index + found[0].length
+  const end = valueEnd(block, at)
+  const tail = block.slice(end)
+  const replaced =
+    block.slice(0, at) + ` ${value}` + (tail.startsWith(',') ? '' : '') + tail
+  return source.slice(0, from) + replaced + source.slice(to)
+}
+
+/** Every top-level object in the array that starts at `open`. */
+function arrayEntries(source: string, open: number): [number, number][] {
+  const start = source.indexOf('[', open)
+  if (start < 0) throw new Error('array: not found')
+  const spans: [number, number][] = []
+  let depth = 0
+  let entry = -1
+  let quote: string | null = null
+  for (let i = start + 1; i < source.length; i += 1) {
+    const c = source[i]
+    if (quote) {
+      if (c === '\\') i += 1
+      else if (c === quote) quote = null
+      continue
+    }
+    if (c === "'" || c === '"' || c === '`') quote = c
+    else if (c === '{' || c === '[' || c === '(') {
+      if (depth === 0 && c === '{') entry = i
+      depth += 1
+    } else if (c === '}' || c === ']' || c === ')') {
+      if (depth === 0 && c === ']') break
+      depth -= 1
+      if (depth === 0 && c === '}' && entry >= 0) {
+        spans.push([entry, i + 1])
+        entry = -1
+      }
+    }
+  }
+  return spans
+}
+
 export interface EditPayload {
   slug: string
   emailBrand: string
   phoneNumber: string
   emailResponsePromise: string
   emailFooterLines: string[]
-  storageOptions: string[]
+  fieldOptions: Record<string, string[]>
   webhookUrl: string
   clientEmail: { fromName: string; fromAddress: string; to: string[]; ccs: string[] }
   adminEmail: { fromName: string; fromAddress: string; to: string[]; ccs: string[] }
@@ -258,13 +306,15 @@ export interface EditPayload {
   adminCopy: Record<string, string>
 }
 
-/** Shared constants the editor keeps using when the value still matches. */
+/**
+ * Shared constants the editor keeps using when the value still matches, so a
+ * save does not expand every reference to one into a literal.
+ */
 const SHARED_ARRAYS: Record<string, string> = {
   '{{lead.email}}': '[LEAD_EMAIL]',
-  ['owner@example.com\u0000ops@example.com']: 'MULEBOX_ADMIN_TO',
 }
 
-/** Applies one market's edits to the source text and returns the new text. */
+/** Applies one profile's edits to the source text and returns the new text. */
 export function applyEdit(source: string, edit: EditPayload): string {
   let next = source
   const reslice = () => blockRange(next, edit.slug)
@@ -274,11 +324,23 @@ export function applyEdit(source: string, edit: EditPayload): string {
     ['phoneNumber', str(edit.phoneNumber)],
     ['emailResponsePromise', str(edit.emailResponsePromise)],
     ['emailFooterLines', `[${edit.emailFooterLines.map(str).join(', ')}]`],
-    ['storageOptions', `[${edit.storageOptions.map(str).join(', ')}]`],
   ]
   for (const [key, value] of scalar) {
     const [from, to] = reslice()
     next = setField(next, from, to, key, value)
+  }
+
+  // Written on one line, and only where the file already declares it: a profile
+  // that offers everything has no such key, and inventing one would be the
+  // editor deciding something the site chose not to say.
+  {
+    const [from, to] = reslice()
+    if (/\n    fieldOptions:/.test(next.slice(from, to))) {
+      const literal = `{ ${Object.entries(edit.fieldOptions)
+        .map(([id, values]) => `${id}: [${values.map(str).join(', ')}]`)
+        .join(', ')} }`
+      next = setField(next, from, to, 'fieldOptions', literal)
+    }
   }
 
   // The webhook URL sits one level deeper, inside `webhook: {`.
@@ -328,7 +390,7 @@ export function applyEdit(source: string, edit: EditPayload): string {
 /**
  * Writes the shared EMAIL_LABELS block.
  *
- * It sits at module level rather than inside a market, so it gets its own
+ * It sits at module level rather than inside a profile, so it gets its own
  * locator — but the same one-line replacement, and the same refusal to guess
  * when the file has drifted.
  */
@@ -339,25 +401,98 @@ export function applyLabels(source: string, labels: EmailLabels): string {
   const close = next.indexOf('\n}\n', open)
   if (close < 0) throw new Error('EMAIL_LABELS: not closed as expected')
 
-  // dateFormat is a scalar at the top of the block.
+  // The scalars at the top of the block. A key the file does not declare is
+  // skipped rather than invented — adminSubjectPrefix is optional, and a site
+  // that has not adopted it must still be able to save the rest.
   {
-    const inner = next.slice(open, close)
-    const updated = setField(inner, 0, inner.length, 'dateFormat', str(labels.dateFormat), '  ')
-    next = next.slice(0, open) + updated + next.slice(close)
+    let inner = next.slice(open, close)
+    const scalars: [string, string | undefined][] = [
+      ['dateFormat', labels.dateFormat],
+      ['subjectTemplate', labels.subjectTemplate],
+      ['adminSubjectPrefix', labels.adminSubjectPrefix],
+    ]
+    for (const [key, value] of scalars) {
+      if (value == null) continue
+      if (!new RegExp(`\\n  ${key}:`).test(inner)) continue
+      inner = setField(inner, 0, inner.length, key, str(value), '  ')
+    }
+    next = next.slice(0, open) + inner + next.slice(close)
   }
 
-  for (const group of ['rows', 'pricing'] as const) {
-    const groupAt = next.indexOf(`  ${group}: {\n`, open)
-    if (groupAt < 0 || groupAt > close) throw new Error(`EMAIL_LABELS.${group}: not found`)
-    const groupEnd = next.indexOf('\n  },\n', groupAt)
-    if (groupEnd < 0) throw new Error(`EMAIL_LABELS.${group}: not closed as expected`)
-    let inner = next.slice(groupAt, groupEnd)
-    for (const [key, value] of Object.entries(labels[group])) {
-      inner = setField(inner, 0, inner.length, key, str(value as string), '    ')
+  if (labels.pricing) {
+    const groupAt = next.indexOf('  pricing: {\n', open)
+    if (groupAt >= 0 && groupAt < close) {
+      const groupEnd = next.indexOf('\n  },\n', groupAt)
+      if (groupEnd < 0) throw new Error('EMAIL_LABELS.pricing: not closed as expected')
+      let inner = next.slice(groupAt, groupEnd)
+      for (const [key, value] of Object.entries(labels.pricing)) {
+        inner = setField(inner, 0, inner.length, key, str(value), '    ')
+      }
+      next = next.slice(0, groupAt) + inner + next.slice(groupEnd)
     }
-    next = next.slice(0, groupAt) + inner + next.slice(groupEnd)
   }
   return next
+}
+
+/**
+ * Writes the labels in the FIELDS array.
+ *
+ * A field's label is the one part of the form's shape that is copy rather than
+ * structure: it is the words beside the value in both emails, and whoever owns
+ * that wording should not need a deploy to change it. Everything else about a
+ * field — its id, its type, what it depends on — stays a code edit, because
+ * changing it changes what the webhook keys can draw from.
+ */
+export function applyFieldLabels(
+  source: string,
+  labels: Record<string, string>
+): string {
+  let next = source
+  const open = next.indexOf('\nexport const FIELDS = ')
+  if (open < 0) throw new Error(`FIELDS: not found in ${SOURCE}`)
+
+  for (const [id, label] of Object.entries(labels)) {
+    const spans = arrayEntries(next, open)
+    const span = spans.find((s) => {
+      const entry = next.slice(s[0], s[1])
+      return new RegExp(`id\\s*:\\s*'${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`).test(entry)
+    })
+    // A label for a field the file no longer declares is dropped rather than
+    // appended somewhere it does not belong.
+    if (!span) continue
+    next = setInlineField(next, span[0], span[1], 'label', str(label))
+  }
+  return next
+}
+
+/**
+ * Writes the SITE_SETTINGS block.
+ *
+ * Booleans are written bare and lists as array literals; everything else is a
+ * string. Same one-line replacement and same refusal to guess as the rest.
+ */
+export function applySettings(source: string, settings: SiteSettings): string {
+  let next = source
+  const open = next.indexOf('\nexport const SITE_SETTINGS = {\n')
+  if (open < 0) throw new Error(`SITE_SETTINGS: not found in ${SOURCE}`)
+  const close = next.indexOf('\n}\n', open)
+  if (close < 0) throw new Error('SITE_SETTINGS: not closed as expected')
+
+  let inner = next.slice(open, close)
+  for (const [key, value] of Object.entries(settings)) {
+    const literal =
+      typeof value === 'boolean'
+        ? String(value)
+        : Array.isArray(value)
+          ? `[${value.map((v) => str(String(v))).join(', ')}]`
+          : str(String(value))
+    // A key the file does not declare is skipped rather than invented. Settings
+    // gained fields over time, and a site that has not adopted one must still
+    // be able to save the ones it has — the Settings tab says which are absent.
+    if (!new RegExp(`\\n\\s*${key}:`).test(inner)) continue
+    inner = setField(inner, 0, inner.length, key, literal, '  ')
+  }
+  return next.slice(0, open) + inner + next.slice(close)
 }
 
 /** One key as it is written in the config. */
@@ -367,9 +502,7 @@ function serialiseKey(k: EditableKey): string {
   const parts: string[] = [`from: ${str(k.from)}`]
   const mapEntries = Object.entries(k.map).filter(([, v]) => v !== '')
   if (mapEntries.length) {
-    parts.push(
-      `as: { ${mapEntries.map(([a, b]) => `${a}: ${str(b)}`).join(', ')} }`
-    )
+    parts.push(`as: { ${mapEntries.map(([a, b]) => `${a}: ${str(b)}`).join(', ')} }`)
   } else if (k.transform) {
     parts.push(`as: ${str(k.transform)}`)
   }
@@ -383,20 +516,16 @@ function serialiseKey(k: EditableKey): string {
 }
 
 /**
- * Rewrites one market's `keys` block.
+ * Rewrites one profile's `keys` block.
  *
  * Unlike every other edit this one regenerates rather than replacing a line,
  * because keys can be renamed, added and removed. Two consequences worth
- * knowing: a market that shared INITIAL_STAR_KEYS gets its keys written out in
+ * knowing: a profile that shared a default set gets its keys written out in
  * full the first time it is saved, and any comment written inside the block is
- * lost. Comments above `url` — which is where the per-market notes live — are
+ * lost. Comments above `url` — which is where the per-profile notes live — are
  * untouched.
  */
-export function applyKeys(
-  source: string,
-  slug: string,
-  keys: EditableKey[]
-): string {
+export function applyKeys(source: string, slug: string, keys: EditableKey[]): string {
   if (!keys.length) throw new Error('a webhook needs at least one key')
   const seen = new Set<string>()
   for (const k of keys) {
@@ -413,9 +542,7 @@ export function applyKeys(
   const closeAt = source.indexOf('\n      },\n', openAt)
   if (closeAt < 0) throw new Error('keys: not closed as expected')
 
-  const body = keys
-    .map((k) => `        ${k.key}: ${serialiseKey(k)},`)
-    .join('\n')
+  const body = keys.map((k) => `        ${k.key}: ${serialiseKey(k)},`).join('\n')
   return source.slice(0, openAt) + `      keys: {\n${body}` + source.slice(closeAt)
 }
 
@@ -475,12 +602,14 @@ function keysByName(keys: EditableKey[] | undefined): Record<string, string> {
  * and it stays readable when the file around it moves.
  */
 export function diffEditable(
-  before: EditableLocation | undefined,
+  before: EditableProfile | undefined,
   after: Record<string, unknown>,
   labelsBefore: Record<string, unknown>,
-  labelsAfter: Record<string, unknown> | undefined
+  labelsAfter: Record<string, unknown> | undefined,
+  fieldLabelsBefore: Record<string, string> = {},
+  fieldLabelsAfter: Record<string, string> | undefined = undefined
 ): Change[] {
-  const pick = (v: EditableLocation | Record<string, unknown> | undefined) => {
+  const pick = (v: EditableProfile | Record<string, unknown> | undefined) => {
     if (!v) return {}
     const o = v as Record<string, unknown>
     return {
@@ -488,7 +617,7 @@ export function diffEditable(
       phoneNumber: o.phoneNumber,
       emailResponsePromise: o.emailResponsePromise,
       emailFooterLines: o.emailFooterLines,
-      storageOptions: o.storageOptions,
+      fieldOptions: o.fieldOptions,
       webhookUrl: o.webhookUrl,
       clientEmail: o.clientEmail,
       adminEmail: o.adminEmail,
@@ -501,11 +630,13 @@ export function diffEditable(
     ...flatten(pick(before)),
     ...keysByName(before?.webhookKeys),
     ...flatten(labelsBefore, 'labels'),
+    ...flatten(fieldLabelsBefore, 'fields'),
   }
   const b = {
     ...flatten(pick(after)),
     ...keysByName(after.webhookKeys as EditableKey[] | undefined),
     ...flatten(labelsAfter ?? labelsBefore, 'labels'),
+    ...flatten(fieldLabelsAfter ?? fieldLabelsBefore, 'fields'),
   }
 
   const fields = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()
@@ -521,9 +652,9 @@ export const SOURCE_PATH = SOURCE
  * message — so the history says what happened rather than "update config".
  */
 export function changedFields(
-  current: EditableLocation | undefined,
+  current: EditableProfile | undefined,
   edit: Record<string, unknown>,
-  labelsBefore: EmailLabels,
+  labelsBefore: EmailLabels
 ): string[] {
   const changed: string[] = []
   // Key order must not count as a difference: the payload the editor posts and
@@ -532,7 +663,9 @@ export function changedFields(
   const stable = (value: unknown): string =>
     JSON.stringify(value, (_k, v) =>
       v && typeof v === 'object' && !Array.isArray(v)
-        ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1)))
+        ? Object.fromEntries(
+            Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1))
+          )
         : v
     )
   const same = (a: unknown, b: unknown) => stable(a) === stable(b)
@@ -541,20 +674,26 @@ export function changedFields(
   if (current.phoneNumber !== edit.phoneNumber) changed.push('phone number')
   if (current.emailResponsePromise !== edit.emailResponsePromise) changed.push('response promise')
   if (!same(current.emailFooterLines, edit.emailFooterLines)) changed.push('footer lines')
-  if (!same(current.storageOptions, edit.storageOptions)) changed.push('storage options')
+  if (!same(current.fieldOptions, edit.fieldOptions)) changed.push('field options')
   if (current.webhookUrl !== edit.webhookUrl) changed.push('webhook URL')
-  if (!same(current.clientEmail, edit.clientEmail)) changed.push('customer envelope')
-  if (!same(current.adminEmail, edit.adminEmail)) changed.push('team envelope')
-  if (!same(current.clientCopy, edit.clientCopy)) changed.push('customer wording')
-  if (!same(current.adminCopy, edit.adminCopy)) changed.push('team wording')
+  if (!same(current.clientEmail, edit.clientEmail)) changed.push('client envelope')
+  if (!same(current.adminEmail, edit.adminEmail)) changed.push('admin envelope')
+  if (!same(current.clientCopy, edit.clientCopy)) changed.push('client wording')
+  if (!same(current.adminCopy, edit.adminCopy)) changed.push('admin wording')
   if (!same(current.webhookKeys, edit.webhookKeys)) changed.push('webhook keys')
   if (!same(readSettings(), edit.settings)) changed.push('site settings')
 
   const labels = edit.emailLabels as EmailLabels | undefined
   if (labels) {
     if (labels.dateFormat !== labelsBefore.dateFormat) changed.push('date format')
-    if (!same(labels.rows, labelsBefore.rows)) changed.push('shared row labels')
-    if (!same(labels.pricing, labelsBefore.pricing)) changed.push('shared pricing labels')
+    if (labels.subjectTemplate !== labelsBefore.subjectTemplate) changed.push('subject line')
+    if (!same(labels.pricing, labelsBefore.pricing)) changed.push('pricing wording')
+  }
+
+  const fieldLabels = edit.fieldLabels as Record<string, string> | undefined
+  if (fieldLabels) {
+    const before = Object.fromEntries(FIELDS.map((f) => [f.id, f.label]))
+    if (!same(before, fieldLabels)) changed.push('field labels')
   }
   return changed
 }

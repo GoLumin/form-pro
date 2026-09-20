@@ -1,6 +1,6 @@
 {
   "name": "@golumin/form-pro",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "One declared source of truth for a marketing site's lead forms — email envelopes, CRM webhook keys, pricing and the quoting client — with an authenticated console to test, edit, deploy and monitor them.",
   "license": "UNLICENSED",
   "type": "module",

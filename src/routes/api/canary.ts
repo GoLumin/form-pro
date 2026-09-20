@@ -4,7 +4,7 @@
 // can call it without carrying credentials that also unlock an editor which
 // writes production code.
 //
-// Answers 200 only when every location passed, so an uptime monitor pointed
+// Answers 200 only when every profile passed, so an uptime monitor pointed
 // here alerts on a broken form even if the digest email is the thing that
 // broke.
 
@@ -14,7 +14,7 @@ import { canarySubject, renderCanaryEmail } from '../../email/canaryEmail.ts'
 import { getEmailLogoUrl } from 'virtual:form-pro/logo'
 import { sendEmail } from 'virtual:form-pro/mail'
 import { envValue } from '../../env.ts'
-import { LOCATIONS } from 'virtual:form-pro/config'
+import { PROFILES } from 'virtual:form-pro/config'
 import { formatSender } from '../../config.ts'
 
 export const prerender = false
@@ -49,17 +49,17 @@ export const GET: APIRoute = async ({ url, request }) => {
   let digest: 'sent' | 'skipped' | 'failed' = 'skipped'
   if (deliver) {
     try {
-      // The digest comes from the first location's own admin identity: it is
+      // The digest comes from the first profile's own admin identity: it is
       // internal mail, and that address is already verified in the account that
       // sends it — a separate corporate From would be one more thing to keep in
       // step with the sending workspace.
-      const first = Object.values(LOCATIONS)[0]
+      const first = Object.values(PROFILES)[0]
       await sendEmail({
         from: formatSender(first.adminEmail),
-        apiKey: first.getoutsendApiKey,
+        apiKey: first.mailApiKey,
         to: [canaryRecipient()],
-        subject: canarySubject(report),
-        html: renderCanaryEmail(report, logoUrl),
+        subject: canarySubject(report, first.emailBrand),
+        html: renderCanaryEmail(report, logoUrl, first.emailBrand),
       })
       digest = 'sent'
     } catch (error) {

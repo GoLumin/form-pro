@@ -2,14 +2,19 @@ import type { CanaryReport } from '../canary.ts'
 import { COLORS, emailShell, esc } from './shell.ts'
 
 /**
- * The daily digest — one email that says whether every market is answering.
+ * The daily digest — one email that says whether every profile is answering.
  *
  * Deliberately readable at a glance and in the notification preview: the
  * subject alone should settle it, and the body only has to be opened when
  * something is wrong.
  */
-export function renderCanaryEmail(report: CanaryReport, logoUrl: string): string {
-  const failed = report.markets.filter((m) => !m.ok)
+export function renderCanaryEmail(
+  report: CanaryReport,
+  logoUrl: string,
+  brand = 'This site'
+): string {
+  const failed = report.profiles.filter((p) => !p.ok)
+  const count = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
   const row = (label: string, ok: boolean, detail: string) => `
               <tr>
@@ -19,15 +24,15 @@ export function renderCanaryEmail(report: CanaryReport, logoUrl: string): string
                 </td>
               </tr>`
 
-  const market = (m: CanaryReport['markets'][number]) => `
+  const section = (p: CanaryReport['profiles'][number]) => `
         <tr>
           <td style="background-color:${COLORS.card};padding:22px 40px 0;">
-            <p style="margin:0 0 2px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${m.ok ? '#15803d' : '#b3261e'};">
-              ${m.ok ? 'Answering' : 'Needs attention'}
+            <p style="margin:0 0 2px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${p.ok ? '#15803d' : '#b3261e'};">
+              ${p.ok ? 'Answering' : 'Needs attention'}
             </p>
-            <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:${COLORS.ink};">${esc(m.market)} <span style="font-weight:400;color:${COLORS.faint};font-size:13px;">· ${esc(m.zip)}</span></p>
+            <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:${COLORS.ink};">${esc(p.profile)}</p>
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              ${m.checks.map((c) => row(c.name, c.ok, c.detail)).join('')}
+              ${p.checks.map((c) => row(c.name, c.ok, c.detail)).join('')}
             </table>
           </td>
         </tr>`
@@ -35,28 +40,28 @@ export function renderCanaryEmail(report: CanaryReport, logoUrl: string): string
   return emailShell({
     brand: 'Daily form check',
     heading: report.ok
-      ? 'All four markets are answering.'
-      : `${failed.length} market${failed.length === 1 ? '' : 's'} need${failed.length === 1 ? 's' : ''} attention.`,
+      ? `All ${count(report.profiles.length, 'form')} are answering.`
+      : `${count(failed.length, 'form')} need${failed.length === 1 ? 's' : ''} attention.`,
     subheading: report.ok
-      ? 'A quote was priced, an email was delivered and a CRM payload was built for every market.'
-      : `Failing: ${failed.map((m) => m.market).join(', ')}.`,
+      ? 'An email was rendered and a CRM payload was built for every profile.'
+      : `Failing: ${failed.map((p) => p.profile).join(', ')}.`,
     logoUrl,
-    title: 'Mule Box daily form check',
+    title: `${brand} daily form check`,
     rawHeadings: false,
     footerLines: [
       `Checked ${new Date(report.at).toUTCString()}`,
       report.sent
-        ? `A copy of each market's quote email was delivered to ${report.recipient}.`
+        ? `A copy of each profile's email was delivered to ${report.recipient}.`
         : 'Delivery was not exercised on this run.',
       'No leads were posted to any CRM.',
     ],
-    bodyHtml: report.markets.map(market).join(''),
+    bodyHtml: report.profiles.map(section).join(''),
   })
 }
 
 /** Subject line — the whole answer, for anyone who only reads the list. */
-export function canarySubject(report: CanaryReport): string {
+export function canarySubject(report: CanaryReport, brand = 'Forms'): string {
   return report.ok
-    ? 'Mule Box forms: all four markets OK'
-    : `Mule Box forms: ${report.markets.filter((m) => !m.ok).map((m) => m.market).join(', ')} failing`
+    ? `${brand}: all ${report.profiles.length} OK`
+    : `${brand}: ${report.profiles.filter((p) => !p.ok).map((p) => p.profile).join(', ')} failing`
 }

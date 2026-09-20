@@ -35,3 +35,9 @@ declare module 'virtual:form-pro/db' {
   import type { DatabaseHandle } from './db/index.ts'
   export const database: (() => DatabaseHandle | null) | null
 }
+
+declare module 'virtual:form-pro/assets' {
+  export const js: string
+  export const signinJs: string
+  export const css: string
+}
