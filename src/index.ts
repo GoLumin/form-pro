@@ -259,16 +259,25 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           },
           {
             find: /^virtual:form-pro\/mail$/,
+            // Imported lazily, not re-exported. A static re-export puts the
+            // site's transport — and whatever virtual ids it imports, such as
+            // its mail integration's — on a path the dependency scanner walks
+            // in from this package, where it cannot resolve them. Deferring to
+            // the first send keeps the scanner out and costs one cached import.
             replacement: emit(
-            'mail',
-            mailPath
-              ? `export { sendEmail } from ${JSON.stringify(mailPath)}`
-              : `export const sendEmail = async () => {
-                   throw new Error(
-                     'form-pro: no mail transport configured. Pass mail: "./src/utils/sendEmail.ts" to the integration.'
-                   )
-                 }`
-          ),
+              'mail',
+              mailPath
+                ? `let impl
+                   export async function sendEmail(message) {
+                     impl ??= (await import(${JSON.stringify(mailPath)})).sendEmail
+                     return impl(message)
+                   }`
+                : `export const sendEmail = async () => {
+                     throw new Error(
+                       'form-pro: no mail transport configured. Pass mail: "./src/utils/sendEmail.ts" to the integration.'
+                     )
+                   }`
+            ),
           },
           {
             find: /^virtual:form-pro\/env$/,
@@ -280,13 +289,18 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           { find: /^virtual:form-pro\/db$/, replacement: emit('db', dbSource) },
           {
             find: /^virtual:form-pro\/logo$/,
+            // Lazy for the same reason as the transport above.
             replacement: emit(
-            'logo',
-            logoPath
-              ? `export { getEmailLogoUrl } from ${JSON.stringify(logoPath)}`
-              : `import options from ${JSON.stringify(path.join(generatedDir, 'options.mjs'))}
-                 export const getEmailLogoUrl = async () => options.logo`
-          ),
+              'logo',
+              logoPath
+                ? `let impl
+                   export async function getEmailLogoUrl(hostname) {
+                     impl ??= (await import(${JSON.stringify(logoPath)})).getEmailLogoUrl
+                     return impl(hostname)
+                   }`
+                : `import options from ${JSON.stringify(path.join(generatedDir, 'options.mjs'))}
+                   export const getEmailLogoUrl = async () => options.logo`
+            ),
           },
           {
             find: /^virtual:form-pro\/quoting$/,
