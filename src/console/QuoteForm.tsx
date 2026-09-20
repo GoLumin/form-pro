@@ -1,9 +1,15 @@
 import * as React from 'react'
-import { AlertTriangle, Loader2 } from 'lucide-react'
+import { AlertTriangle, CalendarIcon, Loader2 } from 'lucide-react'
 import { Button } from '../components/ui/button.tsx'
+import { Calendar } from '../components/ui/calendar.tsx'
 import { Checkbox } from '../components/ui/checkbox.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { Label } from '../components/ui/label.tsx'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../components/ui/popover.tsx'
 import {
   Select,
   SelectContent,
@@ -38,6 +44,25 @@ const SERVICES = [
   ['store_it', 'Store It'],
 ] as const
 
+/**
+ * The delivery date stays the `yyyy-mm-dd` string the endpoint is given; the
+ * calendar only borrows it as a `Date`.
+ *
+ * Both conversions read and write the local fields rather than going through
+ * `toISOString`: a plain date has no timezone, so a round trip through UTC
+ * lands on midnight and comes back as the day before anywhere west of it.
+ */
+function parseDate(value: string): Date | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!m) return undefined
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+}
+
+function toDateValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 export function QuoteForm({
   onResult,
   busy,
@@ -67,6 +92,9 @@ export function QuoteForm({
   const [liveQuote, setLiveQuote] = React.useState(true)
   const [reallySend, setReallySend] = React.useState(false)
   const [reallyPost, setReallyPost] = React.useState(false)
+
+  const [dateOpen, setDateOpen] = React.useState(false)
+  const selectedDate = parseDate(deliveryDate)
 
   const [options, setOptions] = React.useState<Options | null>(null)
   const [checking, setChecking] = React.useState(false)
@@ -212,12 +240,36 @@ export function QuoteForm({
             </div>
             <div className="space-y-2">
               <Label htmlFor="date">Delivery date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-              />
+              <Popover open={dateOpen} onOpenChange={setDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="date"
+                    variant="outline"
+                    className="w-full justify-between px-3 font-normal"
+                  >
+                    {selectedDate
+                      ? selectedDate.toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                      : 'Pick a date'}
+                    <CalendarIcon className="size-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    defaultMonth={selectedDate}
+                    onSelect={(date) => {
+                      if (!date) return
+                      setDeliveryDate(toDateValue(date))
+                      setDateOpen(false)
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 

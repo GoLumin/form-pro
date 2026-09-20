@@ -128,6 +128,13 @@ export default function quoteExperience(
         updateConfig({
           vite: {
             ssr: { noExternal: ['@golumin/form-pro'] },
+            // Excluded from dependency pre-bundling, not just from SSR
+            // externalisation. Pre-bundling runs esbuild directly and never
+            // calls a plugin's resolveId, so it cannot resolve the virtual
+            // modules these files import — and it only kicks in once the
+            // package is a real directory in node_modules, which is why a
+            // linked checkout never hit it and a git install did.
+            optimizeDeps: { exclude: ['@golumin/form-pro'] },
             plugins: [
               {
                 name: 'form-pro:quoting',

@@ -58,8 +58,8 @@ export function Editor({
   return (
     <Tabs defaultValue="client" className="gap-4">
       <TabsList>
-        <TabsTrigger value="client">Customer email</TabsTrigger>
-        <TabsTrigger value="admin">Team email</TabsTrigger>
+        <TabsTrigger value="client">Client email</TabsTrigger>
+        <TabsTrigger value="admin">Admin email</TabsTrigger>
         <TabsTrigger value="webhooks">Webhook</TabsTrigger>
         <TabsTrigger value="pricing">Pricing wording</TabsTrigger>
       </TabsList>

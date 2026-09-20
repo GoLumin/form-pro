@@ -210,6 +210,13 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
             // .astro and .tsx ship as source, so Vite has to compile them
             // rather than hand the file to the Node loader.
             ssr: { noExternal: [NAME] },
+            // Excluded from dependency pre-bundling, not just from SSR
+            // externalisation. Pre-bundling runs esbuild directly and never
+            // calls a plugin's resolveId, so it cannot resolve the virtual
+            // modules these files import — and it only kicks in once the
+            // package is a real directory in node_modules, which is why a
+            // linked checkout never hit it and a git install did.
+            optimizeDeps: { exclude: [NAME] },
             // A linked checkout of this package sits outside the project root,
             // and the dev server refuses to serve a client island from there.
             // The root is listed too because naming `allow` at all replaces
