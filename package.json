@@ -1,6 +1,6 @@
 {
   "name": "@golumin/form-pro",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Declare what a form collects once — fields, profiles, email envelopes and CRM webhook keys — and get an authenticated console to test, edit, deploy and monitor it.",
   "license": "UNLICENSED",
   "type": "module",
