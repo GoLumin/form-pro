@@ -143,6 +143,7 @@ export default function quoteExperience(
         updateConfig({
           vite: {
             ssr: { noExternal: ['@golumin/form-pro'] },
+            optimizeDeps: { exclude: ['@golumin/form-pro'] },
             resolve: {
               // Anchored patterns in array form: a string alias matches by
               // prefix, so `virtual:quoting/config` would resolve under

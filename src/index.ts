@@ -302,6 +302,12 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
             // .astro and .tsx ship as source, so Vite has to compile them
             // rather than hand the file to the Node loader.
             ssr: { noExternal: [NAME] },
+            // Excluded from dependency pre-bundling as well. With the
+            // aliases above the optimiser can now follow this package's
+            // imports, which means it walks on into the site's own modules and
+            // their virtual ids — and those it cannot resolve. Nothing here
+            // needs pre-bundling anyway: it is compiled with the app.
+            optimizeDeps: { exclude: [NAME] },
             resolve: { alias },
           },
         })
