@@ -1,8 +1,8 @@
 // The transport seam.
 //
 // The package renders every message and never sends one. Each site keeps its
-// own sender — mulebox.com's GetOutsend wrapper, a microsite's
-// virtual:getoutsend with its dev outbox — and hands it in. That is what lets
+// own sender — a transactional-email wrapper, a virtual module with a dev
+// outbox — and hands it in. That is what lets
 // the same templates run on a Netlify build and in a Cloudflare Worker, and it
 // keeps the dev outbox working: a preview that bypassed the site's sender would
 // quietly deliver mail that `astro dev` is supposed to capture.

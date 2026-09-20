@@ -10,9 +10,11 @@
 // with no CMS credentials, which is exactly when you most want to test a form —
 // and shipping its own bundle is what lets it look and behave identically on a
 // site built with React and one built with Preact.
-import { LOCATIONS } from 'virtual:form-pro/config'
+import { PROFILES, QUOTING } from 'virtual:form-pro/config'
 import options from 'virtual:form-pro/options'
 import { basicAuthChallenge, consoleToken } from '../basicAuth.ts'
+import { routing } from '../routing.ts'
+import { quotingEnabled } from '../quoting/submission.ts'
 import { auth, sessionUser } from '../auth/server.ts'
 
 export const prerender = false
@@ -34,17 +36,18 @@ if (auth()) {
 // fetch() from a document whose URL carried them.
 const token = await consoleToken()
 
-const markets = Object.entries(LOCATIONS).map(([slug, location]) => ({
+const profiles = Object.entries(PROFILES).map(([slug, profile]) => ({
   slug,
-  name: location.name,
+  name: profile.name,
 }))
 
-const brand = options.title || markets[0]?.name || 'Form console'
+const brand = options.title || profiles[0]?.name || 'Form console'
 const assets = `${options.route}/assets`
 const v = encodeURIComponent(options.version)
 
-// Two weeks out, so the date is always valid without anyone editing it.
-const defaultDate = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10)
+// How a submission finds its profile, so the test form knows whether it has to
+// ask the server anything and which field it is waiting on.
+const route = routing()
 
 const bootstrap = {
   token,
@@ -54,9 +57,13 @@ const bootstrap = {
   host: options.host,
   configPath: options.configPath,
   route: options.route,
-  markets,
-  single: markets.length === 1,
-  defaultDate,
+  profiles,
+  single: profiles.length === 1,
+  routing: {
+    kind: route.kind,
+    ...(route.kind === 'lookup' ? { field: route.field, minLength: route.minLength ?? 1 } : {}),
+  },
+  quoting: Boolean(QUOTING) && quotingEnabled(),
   adapter: options.adapter,
   hasDb: options.hasDb,
   user: signedIn?.email ?? null,

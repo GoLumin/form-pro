@@ -38,7 +38,7 @@ export function Revisions({
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{r.author}</span>
-                <Badge variant="secondary">{r.market}</Badge>
+                <Badge variant="secondary">{r.profile}</Badge>
                 <Badge variant={r.kind === 'deploy' ? 'default' : 'outline'}>
                   {r.kind === 'deploy' ? (
                     <>

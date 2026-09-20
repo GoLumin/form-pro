@@ -43,14 +43,14 @@ export const SETTING_INFO: Record<string, SettingInfo> = {
         <Section title="What it does">
           <p>
             Once a day a schedule calls this site's <Code>/api/canary</Code>, which walks a quote
-            through every location the way a real visitor would. It checks:
+            through every profile the way a real visitor would. It checks:
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <b>Routing</b> — the location's own ZIP still resolves to it.
+              <b>Routing</b> — the profile's own routing value still resolves to it.
             </li>
             <li>
-              <b>Catalog</b> — gofuse returns container sizes. An empty list here is an empty
+              <b>Catalog</b> — the pricing back end returns its options. An empty list here is an empty
               dropdown on the live form.
             </li>
             <li>
@@ -66,7 +66,7 @@ export const SETTING_INFO: Record<string, SettingInfo> = {
               not empty.
             </li>
             <li>
-              <b>Render</b> — both emails build, and the location's name is really in them.
+              <b>Render</b> — both emails build, and the profile's brand is really in them.
             </li>
           </ul>
           <p>
@@ -88,7 +88,7 @@ export const SETTING_INFO: Record<string, SettingInfo> = {
           </p>
         </Section>
         <Cost>
-          Costs one gofuse quote preview per location per day. <b>No lead is ever posted to the
+          Costs one quote preview per profile per day. <b>No lead is ever posted to the
           CRM</b> — a junk lead a day buys little, because the CRM answers 200 to a payload it
           cannot even map.
         </Cost>
@@ -103,7 +103,7 @@ export const SETTING_INFO: Record<string, SettingInfo> = {
       <div className="space-y-4">
         <Section title="What it does">
           <p>
-            After rendering, the client email is <b>really sent</b> through GetOutsend — using the
+            After rendering, the client email is <b>really sent</b> through the site's transport — using the
             configured From address and sending account, with only the recipient swapped for the
             monitoring inbox. The subject is prefixed <Code>[canary]</Code> so it is obvious in the
             inbox.
@@ -112,7 +112,7 @@ export const SETTING_INFO: Record<string, SettingInfo> = {
         <Section title="Why it is not just belt and braces">
           <p>
             This check was written after an outage where leads produced no email at all. Everything
-            upstream was fine: the ZIP routed, the quote priced, the HTML built. GetOutsend rejected
+            upstream was fine: the submission routed, the quote priced, the HTML built. The transport rejected
             the message at send time because the From domain was not verified in the workspace whose
             key was sending it. <b>Only a real send sees that</b> — a dry run would have reported
             everything green through the whole outage.
@@ -124,7 +124,7 @@ export const SETTING_INFO: Record<string, SettingInfo> = {
             From/sending-account pairing goes untested. That is the pairing that failed.
           </p>
         </Section>
-        <Cost>Costs one extra email per location per day, all to the one address below.</Cost>
+        <Cost>Costs one extra email per profile per day, all to the one address below.</Cost>
       </div>
     ),
   },
@@ -140,7 +140,7 @@ export const SETTING_INFO: Record<string, SettingInfo> = {
               <b>One digest a day</b> — every check, pass or fail, with the detail.
             </li>
             <li>
-              <b>One <Code>[canary]</Code> quote email per location</b>, when delivery is switched on
+              <b>One <Code>[canary]</Code> quote email per profile</b>, when delivery is switched on
               above.
             </li>
           </ul>
@@ -192,32 +192,4 @@ export const SETTING_INFO: Record<string, SettingInfo> = {
     ),
   },
 
-  franchiseAdminTo: {
-    title: 'Franchise enquiries go to',
-    sub: 'Who is notified when someone asks about owning one.',
-    body: (
-      <div className="space-y-4">
-        <Section title="What it does">
-          <p>
-            Everyone listed is on the <b>To</b> line of the internal notification for the franchise
-            enquiry form. One address per line. The person who enquired gets their own confirmation
-            either way — a separate message, unaffected by this.
-          </p>
-        </Section>
-        <Section title="This is not the quote form">
-          <p>
-            Quote leads never come here. They go to each location's own team addresses, set on the{' '}
-            <b>Editor</b> tab.
-          </p>
-        </Section>
-        <Section title="What emptying it means">
-          <p>
-            The enquiry still succeeds for the visitor and they still get their confirmation — but
-            nobody here is told. That is a silent failure: it looks fine from the outside while
-            enquiries go nowhere.
-          </p>
-        </Section>
-      </div>
-    ),
-  },
 }

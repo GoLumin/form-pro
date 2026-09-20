@@ -166,12 +166,11 @@ export const renderLeadEmails = (input: LeadEmailInput) => {
 
   const email = leadEmailAddress(input.fields, input.lead)
   const phone = leadPhone(input.fields, input.lead)
-  // The headline of the internal email is whoever sent it, when the form asks
-  // at all; a form that collects no name falls back to the subject, which at
-  // least says what came in.
-  const who =
-    input.fields.find((f) => f.derive || /name/i.test(f.id))?.id ?? ''
-  const heading = (who && input.lead[who]) || input.emailSubject
+  // The headline of the internal email is whoever sent it, where the site says
+  // which field that is. A form that names none falls back to the subject,
+  // which at least says what came in.
+  const headline = input.fields.find((f) => f.headline)
+  const heading = (headline && input.lead[headline.id]) || input.emailSubject
 
   const clientHtml = emailShell({
     brand: profile.emailBrand,

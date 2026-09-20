@@ -18,34 +18,30 @@ import {
   SelectValue,
 } from '../components/ui/select.tsx'
 import { Separator } from '../components/ui/separator.tsx'
+import { Textarea } from '../components/ui/textarea.tsx'
 import { api, boot } from './api.ts'
-import type { SubmitResponse } from './types.ts'
+import type { FieldDef, OptionsResponse, SubmitResponse } from './types.ts'
 
 /**
- * The submission form, with the same conditionals the real quote form has.
+ * One submission, built from the fields the site declares.
  *
- * Storage only appears on Store It, because that is the only service where the
- * indoor/outdoor split exists; the relocation ZIP only on Move It. A preview
- * that offered fields the form does not would report on a submission nobody can
- * actually make.
+ * It renders exactly what the real form renders — the same fields in the same
+ * order, appearing and disappearing under the same conditions — because both
+ * read the one declaration. A console that offered fields the form does not
+ * would report on a submission nobody can actually make.
  */
 
-interface Options {
-  served: boolean
-  incomplete: boolean
-  name: string | null
-  sizesByService: Record<string, string[]>
-  storageOptions: string[]
+/** Whether a field applies, given what has been filled in so far. */
+function isVisible(field: FieldDef, values: Record<string, string>): boolean {
+  if (!field.showWhen) return true
+  return Object.entries(field.showWhen).every(([id, expected]) => {
+    const allowed = Array.isArray(expected) ? expected : [expected]
+    return allowed.includes(values[id] ?? '')
+  })
 }
 
-const SERVICES = [
-  ['keep_it', 'Keep It'],
-  ['move_it', 'Move It'],
-  ['store_it', 'Store It'],
-] as const
-
 /**
- * The delivery date stays the `yyyy-mm-dd` string the endpoint is given; the
+ * The delivered value stays the `yyyy-mm-dd` string a date input produces; the
  * calendar only borrows it as a `Date`.
  *
  * Both conversions read and write the local fields rather than going through
@@ -63,89 +59,126 @@ function toDateValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+/** Two weeks out, so a date field always starts on something valid. */
+function defaultDate(): string {
+  return toDateValue(new Date(Date.now() + 14 * 86_400_000))
+}
+
+function initialValues(fields: FieldDef[]): Record<string, string> {
+  const values: Record<string, string> = {}
+  for (const field of fields) {
+    if (field.derived) continue
+    values[field.id] =
+      field.sample ??
+      (field.type === 'date'
+        ? defaultDate()
+        : field.type === 'choice'
+          ? (field.options?.[0]?.value ?? '')
+          : '')
+  }
+  return values
+}
+
 export function QuoteForm({
+  fields,
   onResult,
   busy,
   setBusy,
 }: {
+  fields: FieldDef[]
   onResult: (r: SubmitResponse) => void
   busy: boolean
   setBusy: (b: boolean) => void
 }) {
-  const { markets, single, defaultDate } = boot()
+  const { profiles, single, routing, quoting, crm } = boot()
 
-  const HOME = '__home'
-  const [locationSlug, setLocationSlug] = React.useState(
-    single ? (markets[0]?.slug ?? HOME) : HOME
+  const ANY = '__any'
+  const [profileSlug, setProfileSlug] = React.useState(
+    single ? (profiles[0]?.slug ?? ANY) : ANY
   )
-  const pageSlug = locationSlug === HOME ? null : locationSlug
-  const [serviceType, setServiceType] = React.useState<string>('keep_it')
-  const [storeItType, setStoreItType] = React.useState('outdoor')
-  const [containerSize, setContainerSize] = React.useState('')
-  const [deliveryDate, setDeliveryDate] = React.useState(defaultDate)
-  const [zip, setZip] = React.useState('')
-  const [relocationZip, setRelocationZip] = React.useState('')
-  const [firstName, setFirstName] = React.useState('Ada')
-  const [lastName, setLastName] = React.useState('Lovelace')
-  const [email, setEmail] = React.useState('ada@example.com')
-  const [phone, setPhone] = React.useState('(555) 010-4142')
-  const [liveQuote, setLiveQuote] = React.useState(true)
+  const pageSlug = profileSlug === ANY ? null : profileSlug
+  const [values, setValues] = React.useState<Record<string, string>>(() =>
+    initialValues(fields)
+  )
+  const [liveQuote, setLiveQuote] = React.useState(quoting)
   const [reallySend, setReallySend] = React.useState(false)
   const [reallyPost, setReallyPost] = React.useState(false)
+  const [dateOpen, setDateOpen] = React.useState<string | null>(null)
 
-  const [dateOpen, setDateOpen] = React.useState(false)
-  const selectedDate = parseDate(deliveryDate)
-
-  const [options, setOptions] = React.useState<Options | null>(null)
+  const [options, setOptions] = React.useState<OptionsResponse | null>(null)
   const [checking, setChecking] = React.useState(false)
 
-  // The catalog is asked once per complete ZIP, and answers for every service
-  // at once, so switching service costs no round trip.
+  const set = (id: string, value: string) => setValues((v) => ({ ...v, [id]: value }))
+
+  // What the server is asked about, and the only thing that makes it worth
+  // asking again: the value that decides the profile, and the page it came
+  // from. Everything else the form collects is irrelevant to that answer.
+  const routingValue = routing.field ? (values[routing.field] ?? '') : ''
+  const ready =
+    routing.kind !== 'lookup' ||
+    routingValue.trim().length >= (routing.minLength ?? 1)
+
   React.useEffect(() => {
-    if (!/^\d{5}$/.test(zip.trim())) {
+    if (!ready) {
       setOptions(null)
       return
     }
     let cancelled = false
     setChecking(true)
-    api<Options>('options', { zip: zip.trim(), locationSlug: pageSlug }).then(
-      ({ data }) => {
-        if (cancelled) return
-        setChecking(false)
-        setOptions(data)
-      }
-    )
+    api<OptionsResponse>('options', {
+      values: routing.field ? { [routing.field]: routingValue } : {},
+      profileSlug: pageSlug,
+    }).then(({ data }) => {
+      if (cancelled) return
+      setChecking(false)
+      setOptions(data)
+    })
     return () => {
       cancelled = true
     }
-  }, [zip, pageSlug])
+  }, [routingValue, pageSlug, ready])
 
-  const sizes = options?.sizesByService?.[serviceType] ?? []
-  const storage = options?.storageOptions ?? []
+  /**
+   * The options one choice field actually offers here: the catalog's, when the
+   * back end answered for it, and otherwise the ones this profile sells.
+   */
+  const optionsFor = (field: FieldDef): { value: string; label: string }[] => {
+    const declared = field.options ?? []
+    const catalog = options?.catalog
+    if (catalog && catalog.field === field.id) {
+      const values_ = catalog.byValue[values[catalog.dependsOn] ?? ''] ?? []
+      return values_.map((v) => ({ value: v, label: v }))
+    }
+    const allowed = options?.fieldOptions?.[field.id]
+    if (!allowed) return [...declared]
+    const keep = new Set(allowed)
+    return declared.filter((o) => keep.has(o.value))
+  }
 
+  // A value the profile turned out not to offer is corrected rather than sent:
+  // the form must never submit an option this profile cannot accept.
   React.useEffect(() => {
-    if (sizes.length && !sizes.includes(containerSize)) setContainerSize(sizes[0])
-  }, [sizes.join(','), serviceType])
-
-  React.useEffect(() => {
-    if (storage.length && !storage.includes(storeItType)) setStoreItType(storage[0])
-  }, [storage.join(',')])
+    if (!options) return
+    setValues((current) => {
+      let next = current
+      for (const field of fields) {
+        if (field.type !== 'choice') continue
+        const available = optionsFor(field)
+        if (!available.length) continue
+        if (!available.some((o) => o.value === current[field.id])) {
+          next = { ...next, [field.id]: available[0].value }
+        }
+      }
+      return next
+    })
+  }, [options, JSON.stringify(values)])
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
     const { data, error } = await api<SubmitResponse>('submit', {
-      locationSlug: pageSlug,
-      serviceType,
-      storeItType: serviceType === 'store_it' && storage.length > 1 ? storeItType : undefined,
-      firstName,
-      lastName,
-      email,
-      phone,
-      initialDeliveryZip: zip,
-      finalDeliveryZip: serviceType === 'move_it' ? relocationZip : undefined,
-      deliveryDate,
-      selectedContainerType: containerSize,
+      profileSlug: pageSlug,
+      values,
       liveQuote,
       reallySend,
       reallyPost,
@@ -167,222 +200,177 @@ export function QuoteForm({
     </div>
   )
 
+  const renderField = (field: FieldDef) => {
+    const value = values[field.id] ?? ''
+
+    if (field.type === 'choice') {
+      const available = optionsFor(field)
+      return (
+        <Select
+          value={value}
+          onValueChange={(v) => set(field.id, v)}
+          disabled={available.length === 0}
+        >
+          <SelectTrigger id={field.id} className="w-full">
+            <SelectValue placeholder={options ? 'Nothing offered here' : 'Waiting…'} />
+          </SelectTrigger>
+          <SelectContent>
+            {available.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )
+    }
+
+    if (field.type === 'date') {
+      const selected = parseDate(value)
+      return (
+        <Popover
+          open={dateOpen === field.id}
+          onOpenChange={(open) => setDateOpen(open ? field.id : null)}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              id={field.id}
+              variant="outline"
+              className="w-full justify-between px-3 font-normal"
+            >
+              {selected
+                ? selected.toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })
+                : 'Pick a date'}
+              <CalendarIcon className="size-4 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={selected}
+              defaultMonth={selected}
+              onSelect={(date) => {
+                if (!date) return
+                set(field.id, toDateValue(date))
+                setDateOpen(null)
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+      )
+    }
+
+    if (field.type === 'textarea') {
+      return (
+        <Textarea
+          id={field.id}
+          rows={3}
+          value={value}
+          placeholder={field.placeholder}
+          onChange={(e) => set(field.id, e.target.value)}
+        />
+      )
+    }
+
+    return (
+      <Input
+        id={field.id}
+        type={field.type === 'email' ? 'email' : 'text'}
+        inputMode={field.type === 'zip' || field.type === 'number' ? 'numeric' : undefined}
+        value={value}
+        placeholder={field.placeholder}
+        onChange={(e) => set(field.id, e.target.value)}
+      />
+    )
+  }
+
+  // Derived fields are computed on the server from the rest, so there is
+  // nothing to type into: the form asks for exactly what the real form asks for.
+  const visible = fields.filter((f) => !f.derived && isVisible(f, values))
+
   return (
     <form onSubmit={submit} className="space-y-6">
-      {section(
-        "Where it's submitted from",
-        <div className="space-y-2">
-          <Label htmlFor="page">Page</Label>
-          <Select value={locationSlug} onValueChange={setLocationSlug} disabled={single}>
-            <SelectTrigger id="page" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {single ? (
-                <SelectItem value={markets[0]?.slug ?? HOME}>
-                  The quote form — {markets[0]?.name}
-                </SelectItem>
-              ) : (
-                <>
-                  <SelectItem value={HOME}>Home / any non-location page (ZIP decides)</SelectItem>
-                  {markets.map((m) => (
-                    <SelectItem key={m.slug} value={m.slug}>
-                      /locations/{m.slug} — {m.name}
-                    </SelectItem>
-                  ))}
-                </>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      <Separator />
-
-      {section(
-        'What they picked',
-        <div className="space-y-4">
+      {!single &&
+        section(
+          "Where it's submitted from",
           <div className="space-y-2">
-            <Label htmlFor="service">Service</Label>
-            <Select value={serviceType} onValueChange={setServiceType}>
-              <SelectTrigger id="service" className="w-full">
+            <Label htmlFor="page">Page</Label>
+            <Select value={profileSlug} onValueChange={setProfileSlug}>
+              <SelectTrigger id="page" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {SERVICES.map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
+                <SelectItem value={ANY}>
+                  {routing.kind === 'lookup'
+                    ? 'Any page with no profile of its own'
+                    : 'No page — nothing to route by'}
+                </SelectItem>
+                {profiles.map((p) => (
+                  <SelectItem key={p.slug} value={p.slug}>
+                    {p.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+        )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="size">Container</Label>
-              <Select
-                value={containerSize}
-                onValueChange={setContainerSize}
-                disabled={sizes.length === 0}
-              >
-                <SelectTrigger id="size" className="w-full">
-                  <SelectValue placeholder={options ? 'No sizes here' : 'Enter a ZIP'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {sizes.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="date">Delivery date</Label>
-              <Popover open={dateOpen} onOpenChange={setDateOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="date"
-                    variant="outline"
-                    className="w-full justify-between px-3 font-normal"
-                  >
-                    {selectedDate
-                      ? selectedDate.toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
-                      : 'Pick a date'}
-                    <CalendarIcon className="size-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    defaultMonth={selectedDate}
-                    onSelect={(date) => {
-                      if (!date) return
-                      setDeliveryDate(toDateValue(date))
-                      setDateOpen(false)
-                    }}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          {/* Only on Store It, and only where the market sells both. */}
-          {serviceType === 'store_it' && storage.length > 1 && (
-            <div className="space-y-2">
-              <Label htmlFor="storage">Storage</Label>
-              <Select value={storeItType} onValueChange={setStoreItType}>
-                <SelectTrigger id="storage" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {storage.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s === 'indoor' ? 'Indoor' : 'Outdoor'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="zip">Delivery ZIP</Label>
-              <Input
-                id="zip"
-                inputMode="numeric"
-                value={zip}
-                onChange={(e) => setZip(e.target.value)}
-                placeholder="75201"
-              />
-            </div>
-            {serviceType === 'move_it' && (
-              <div className="space-y-2">
-                <Label htmlFor="relo">Relocation ZIP</Label>
-                <Input
-                  id="relo"
-                  inputMode="numeric"
-                  value={relocationZip}
-                  onChange={(e) => setRelocationZip(e.target.value)}
-                />
-              </div>
-            )}
-          </div>
-
-          <p className="text-xs leading-relaxed text-muted-foreground" aria-live="polite">
-            {checking ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Loader2 className="size-3 animate-spin" /> Checking coverage…
-              </span>
-            ) : options?.served ? (
-              <>
-                Served by <span className="font-medium text-foreground">{options.name}</span>. Sizes
-                and storage above are that market's own.
-              </>
-            ) : options && !options.incomplete ? (
-              <span className="text-destructive">No market serves this ZIP.</span>
-            ) : (
-              'Enter a five-digit ZIP to see who serves it and what they stock.'
-            )}
-          </p>
-        </div>
-      )}
-
-      <Separator />
+      {!single && <Separator />}
 
       {section(
-        'Who they are',
+        'What they filled in',
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="first">First name</Label>
-              <Input id="first" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          {visible.map((field) => (
+            <div key={field.id} className="space-y-2">
+              <Label htmlFor={field.id}>{field.label}</Label>
+              {renderField(field)}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="last">Last name</Label>
-              <Input id="last" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </div>
+          ))}
+
+          {routing.kind === 'lookup' && (
+            <p className="text-xs leading-relaxed text-muted-foreground" aria-live="polite">
+              {checking ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 className="size-3 animate-spin" /> Checking coverage…
+                </span>
+              ) : options?.served ? (
+                <>
+                  Handled by <span className="font-medium text-foreground">{options.name}</span>.
+                  The options above are that profile's own.
+                </>
+              ) : options && !options.incomplete ? (
+                <span className="text-destructive">No profile covers this.</span>
+              ) : (
+                'Fill that in to see which profile takes it, and what it offers.'
+              )}
+            </p>
+          )}
         </div>
       )}
 
       <Separator />
 
       <div className="space-y-3">
-        <Toggle
-          id="live"
-          checked={liveQuote}
-          onChange={setLiveQuote}
-          title="Ask gofuse for live pricing"
-          hint="Creates a real quote on that market's instance, which is what gives the thank-you page its numbers. Off means no pricing block."
-        />
+        {quoting && (
+          <Toggle
+            id="live"
+            checked={liveQuote}
+            onChange={setLiveQuote}
+            title="Ask for live pricing"
+            hint="Creates a real quote on the pricing back end, which is what gives the emails their numbers. Off means no pricing block."
+          />
+        )}
         <Toggle
           id="send"
           checked={reallySend}
           onChange={setReallySend}
           danger
           title="Really send the emails"
-          hint="Delivers to the real addresses shown on the right, the market's people included. Leave off to render and read them here."
+          hint="Delivers to the real addresses shown on the right. Leave off to render and read them here."
         />
         <Toggle
           id="post"
@@ -390,7 +378,7 @@ export function QuoteForm({
           onChange={setReallyPost}
           danger
           title="Really post the lead"
-          hint={`Files a real lead in ${boot().crm}. Leave off to see the payload without sending it.`}
+          hint={`Files a real lead in ${crm}. Leave off to see the payload without sending it.`}
         />
       </div>
 

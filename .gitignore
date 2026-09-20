@@ -1,1 +1,4 @@
 node_modules
+
+# The writer test leaves its output here for a typecheck.
+src/examples/__writer_output.ts

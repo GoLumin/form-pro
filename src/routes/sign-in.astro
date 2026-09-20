@@ -5,7 +5,7 @@
 // same bundle — a sign-in page that looks like a different product is the
 // easiest kind of page to phish.
 import options from 'virtual:form-pro/options'
-import { LOCATIONS } from 'virtual:form-pro/config'
+import { PROFILES } from 'virtual:form-pro/config'
 import { auth, sessionUser } from '../auth/server.ts'
 
 export const prerender = false
@@ -15,7 +15,7 @@ export const prerender = false
 if (!auth()) return Astro.redirect(options.route)
 if (await sessionUser(Astro.request)) return Astro.redirect(options.route)
 
-const brand = options.title || Object.values(LOCATIONS)[0]?.name || 'Form console'
+const brand = options.title || Object.values(PROFILES)[0]?.name || 'Form console'
 const assets = `${options.route}/assets`
 const v = encodeURIComponent(options.version)
 const bootstrap = { route: options.route, brand, api: `${options.route}/auth` }

@@ -68,7 +68,7 @@ function lineRow(
  * Shared by the admin and client quote emails — mirrors the "due before
  * delivery / then $X per month" breakdown on /quote-thank-you.
  *
- * Renders nothing when pricing is null, so a failed gofuse lookup still sends
+ * Renders nothing when pricing is null, so a failed pricing lookup still sends
  * an email with the request details rather than an empty or $0 pricing block.
  * A plausible-looking wrong number in a customer's inbox is worse than none:
  * the coordinator confirms the figure by phone either way.
@@ -108,7 +108,7 @@ export function renderPricingSection(
       )
     : lineRow(L('monthlyLabel'), `${money(pricing.monthly)}/mo`)
 
-  // A fee's own name is gofuse's, so it is injected rather than editable.
+  // A fee's own name is the back end's, so it is injected rather than editable.
   const feeRows = pricing.transit
     .map((f) =>
       lineRow(

@@ -1,5 +1,5 @@
 /**
- * Who changed a market's configuration, when, and what moved.
+ * Who changed a profile's configuration, when, and what moved.
  *
  * Kept as a JSON file beside the config it describes, so it travels with it:
  * a deploy carries the log in the same commit as the change, and anyone reading
@@ -16,9 +16,9 @@ export interface Revision {
   at: string
   /** Typed by whoever saved; required, and remembered per browser. */
   author: string
-  /** Market slug, and its name at the time of the change. */
+  /** Profile slug, and its name at the time of the change. */
   slug: string
-  market: string
+  profile: string
   /** Human names of the fields that moved, e.g. "phone number". */
   fields: string[]
   /** 'local' while editing on a dev server, 'deploy' once pushed. */
@@ -38,7 +38,15 @@ const LIMIT = 200
 export function parseRevisions(json: string): Revision[] {
   try {
     const parsed = JSON.parse(json)
-    return Array.isArray(parsed) ? (parsed as Revision[]) : []
+    if (!Array.isArray(parsed)) return []
+    // Entries written before profiles were called profiles named the same
+    // field `market`. The log is history and is never rewritten, so it is read
+    // forgivingly instead — otherwise every change made before the rename
+    // shows up in the console with no name against it.
+    return (parsed as (Revision & { market?: string })[]).map(({ market, ...entry }) => ({
+      ...entry,
+      profile: entry.profile ?? market ?? entry.slug,
+    }))
   } catch {
     // A corrupt log must not block a save — the change matters more than
     // the record of it.

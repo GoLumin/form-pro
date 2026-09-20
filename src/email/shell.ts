@@ -1,7 +1,7 @@
 // The one email design every site in this family sends, ported from Mule Box
 // of Austin.
 //
-// Every message a site sends — both quote emails and both franchise emails —
+// Every message a site sends — both lead emails and the daily digest —
 // is built from the pieces below, so there is a single place to change how our
 // mail looks. Table-based layout with inline styles throughout: that is still
 // the only markup Outlook and Gmail render the same way.
@@ -46,7 +46,7 @@ export function esc(value: string): string {
 }
 
 /**
- * Formats a CENTS amount. gofuse returns every price and fee in cents, so the
+ * Formats a CENTS amount. Pricing back ends return every price and fee in cents, so the
  * conversion happens here rather than earlier, where rounding to whole dollars
  * would quietly drop a half-dollar price.
  */

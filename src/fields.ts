@@ -72,8 +72,18 @@ export interface FieldDef {
    * A function, so it never reaches the browser: `clientFields` strips it.
    */
   derive?: (values: Lead) => string
-  /** Kept out of the emails' detail rows, though still on the lead. */
+  /**
+   * Kept out of the emails' detail rows, though still collected and still sent
+   * to the CRM — the two halves of a name that a derived field already prints
+   * as one line, say.
+   */
   hidden?: boolean
+  /**
+   * The one field that says who a submission is from, used as the heading of
+   * the internal email. Without it that heading is the subject line, which at
+   * least says what came in.
+   */
+  headline?: boolean
   /**
    * Who sees this row in the emails. `admin` keeps it out of the client's copy
    * — telling someone their own phone number back is noise, and it is the one
@@ -187,10 +197,19 @@ export function sampleLead(
   return buildLead(fields, raw)
 }
 
-/** The field list as the browser gets it: data only, no functions. */
-export function clientFields(fields: readonly FieldDef[]): FieldDef[] {
+/**
+ * The field list as the browser gets it: data only, no functions.
+ *
+ * `derive` cannot survive the trip, so what it implied — that the field is
+ * computed rather than asked for — is sent as a flag in its place. It stays
+ * separate from `hidden`, which is about the emails: a field can be asked for
+ * and left out of the rows, or computed and shown in them.
+ */
+export function clientFields(
+  fields: readonly FieldDef[]
+): (Omit<FieldDef, 'derive'> & { derived?: boolean })[] {
   return fields.map(({ derive, ...rest }) => ({
     ...rest,
-    ...(derive ? { hidden: true } : {}),
+    ...(derive ? { derived: true } : {}),
   }))
 }

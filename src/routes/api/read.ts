@@ -3,7 +3,8 @@
 
 import type { APIRoute } from 'astro'
 import { authorize, json, readRevisions } from './_shared.ts'
-import { readEditable, readLabels, readSettings } from '../../editor/source.ts'
+import { readEditable, readFields, readLabels, readSettings } from '../../editor/source.ts'
+import { clientFields } from '../../fields.ts'
 import { githubConfig } from '../../editor/github.ts'
 
 export const prerender = false
@@ -13,7 +14,11 @@ export const POST: APIRoute = async (context) => {
   if ('response' in checked) return checked.response
 
   return json({
-    locations: readEditable(),
+    profiles: readEditable(),
+    // The form's shape, so the console can render a test submission and offer
+    // exactly the fields a webhook key may draw from. Stripped of its derived
+    // functions, which do not survive the trip and are not the browser's job.
+    fields: clientFields(readFields()),
     labels: readLabels(),
     settings: readSettings(),
     revisions: await readRevisions(),

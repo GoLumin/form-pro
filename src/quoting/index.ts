@@ -18,8 +18,8 @@ export interface QuotePhone {
 }
 
 export interface QuoteExperienceOptions {
-  /** gofuse host root, no trailing slash. */
-  baseUrl?: string
+  /** gofuse host root, no trailing slash. Required. */
+  baseUrl: string
   /**
    * The variable holding the API token. Read at request time, not baked into
    * the bundle, so rotating it needs no deploy.
@@ -78,7 +78,7 @@ declare module 'virtual:quoting/config' {
 `
 
 export default function quoteExperience(
-  options: QuoteExperienceOptions = {}
+  options: QuoteExperienceOptions
 ): AstroIntegration {
   const {
     tokenEnv = 'QUOTING_API_TOKEN',
@@ -104,7 +104,14 @@ export default function quoteExperience(
         // exports included, and not just the `.env` files: Vite folds every
         // matching `process.env` key in, and every key matches "".
         const env = loadEnv(mode, root, '')
-        const baseUrl = options.baseUrl ?? 'https://mulebox.gofuse.app'
+        // No default: a wrong instance answers, prices a quote against someone
+        // else's catalog and is never noticed. An absent one has to be named.
+        const baseUrl = options.baseUrl
+        if (!baseUrl) {
+          throw new Error(
+            '@golumin/form-pro/quoting: baseUrl is required — pass the instance root.'
+          )
+        }
 
         if (!env[tokenEnv]) {
           logger.warn(

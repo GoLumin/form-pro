@@ -15,12 +15,14 @@ import type { APIRoute } from 'astro'
 import { authorize, fail, json, readSource } from './_shared.ts'
 import {
   applyEdit,
+  applyFieldLabels,
   applyKeys,
   applyLabels,
   applySettings,
   changedFields,
   diffEditable,
   readEditable,
+  readFields,
   readLabels,
   SOURCE_PATH,
   type EditableKey,
@@ -76,14 +78,11 @@ function validate(edit: Record<string, unknown>): string | null {
 
 /** Applies the whole edit to the source text, in the order the file expects. */
 function applyAll(before: string, edit: Record<string, any>): string {
-  return applySettings(
-    applyKeys(
-      applyLabels(applyEdit(before, edit as EditPayload), edit.emailLabels),
-      String(edit.slug),
-      edit.webhookKeys as EditableKey[]
-    ),
-    edit.settings
-  )
+  let next = applyEdit(before, edit as EditPayload)
+  next = applyLabels(next, edit.emailLabels)
+  if (edit.fieldLabels) next = applyFieldLabels(next, edit.fieldLabels)
+  next = applyKeys(next, String(edit.slug), edit.webhookKeys as EditableKey[])
+  return applySettings(next, edit.settings)
 }
 
 export const POST: APIRoute = async (context) => {
@@ -96,9 +95,10 @@ export const POST: APIRoute = async (context) => {
 
   const author = String(edit.author).trim()
   const slug = String(edit.slug)
-  const current = readEditable().find((l) => l.slug === slug)
-  const market = current?.name ?? slug
+  const current = readEditable().find((p) => p.slug === slug)
+  const profileName = current?.name ?? slug
   const labelsBefore = readLabels()
+  const fieldLabelsBefore = Object.fromEntries(readFields().map((f) => [f.id, f.label]))
 
   const config = githubConfig()
   if (deploy && !config) {
@@ -147,14 +147,21 @@ export const POST: APIRoute = async (context) => {
     .map(({ line }) => line.trim())
 
   const fields = changedFields(current, edit as any, labelsBefore)
-  const changes = diffEditable(current, edit as any, labelsBefore, (edit as any).emailLabels)
+  const changes = diffEditable(
+    current,
+    edit as any,
+    labelsBefore,
+    (edit as any).emailLabels,
+    fieldLabelsBefore,
+    (edit as any).fieldLabels
+  )
 
   if (deploy && config) {
     const revision: Revision = {
       at: new Date().toISOString(),
       author,
       slug,
-      market,
+      profile: profileName,
       fields,
       kind: 'deploy',
       changes,
@@ -169,7 +176,7 @@ export const POST: APIRoute = async (context) => {
       existing = []
     }
     const message =
-      `${market}: update ${fields.length ? fields.join(', ') : 'configuration'}\n\n` +
+      `${profileName}: update ${fields.length ? fields.join(', ') : 'configuration'}\n\n` +
       `Edited from the form console by ${author}.`
     try {
       const commit = await putFiles(
@@ -183,7 +190,7 @@ export const POST: APIRoute = async (context) => {
         ],
         message
       )
-      return json({ committed: true, changed: true, market, commit, fields, diff, revision })
+      return json({ committed: true, changed: true, profile: profileName, commit, fields, diff, revision })
     } catch (error) {
       return fail((error as Error).message)
     }
@@ -197,7 +204,7 @@ export const POST: APIRoute = async (context) => {
     at: new Date().toISOString(),
     author,
     slug,
-    market,
+    profile: profileName,
     fields,
     kind: 'local',
     changes,

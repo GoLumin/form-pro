@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '../components/ui/select.tsx'
 import { boot } from './api.ts'
-import type { EditableKey } from './types.ts'
+import type { EditableKey, FieldDef } from './types.ts'
 import { DATE_FORMATS } from '../dateFormats.ts'
 
 /**
@@ -23,24 +23,19 @@ import { DATE_FORMATS } from '../dateFormats.ts'
  * reason this is editable here rather than in the file.
  */
 
-const LEAD_FIELDS = [
-  ['firstName', 'First name'],
-  ['lastName', 'Last name'],
-  ['fullName', 'Full name'],
-  ['email', 'Email'],
-  ['phone', 'Phone'],
-  ['deliveryDate', 'Delivery date'],
-  ['deliveryZip', 'Delivery ZIP'],
-  ['relocationZip', 'Relocation ZIP'],
-  ['serviceType', 'Service'],
-  ['storageType', 'Storage'],
-  ['containerSize', 'Container size'],
-] as const
-
-/** Fields whose values are a vocabulary the CRM has its own words for. */
-const MAPPABLE: Record<string, string[]> = {
-  serviceType: ['keep_it', 'move_it', 'store_it'],
-  storageType: ['indoor', 'outdoor'],
+/**
+ * Fields whose values are a vocabulary the CRM has its own words for — every
+ * choice field the site declares, so the value table offers exactly what can
+ * actually arrive.
+ */
+function mappable(fields: FieldDef[]): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const field of fields) {
+    if (field.type === 'choice' && field.options?.length) {
+      out[field.id] = field.options.map((o) => o.value)
+    }
+  }
+  return out
 }
 
 const TRANSFORMS = [
@@ -49,10 +44,10 @@ const TRANSFORMS = [
   ...DATE_FORMATS.map((f) => [`date:${f}`, `Date as ${f}`]),
 ] as [string, string][]
 
-const blank = (): EditableKey => ({
+const blank = (firstField: string): EditableKey => ({
   key: '',
   mode: 'field',
-  from: 'firstName',
+  from: firstField,
   value: '',
   transform: '',
   map: {},
@@ -62,12 +57,16 @@ const blank = (): EditableKey => ({
 
 export function WebhookKeys({
   keys,
+  fields,
   onChange,
 }: {
   keys: EditableKey[]
+  /** What the form collects — the only things a key may draw from. */
+  fields: FieldDef[]
   onChange: (keys: EditableKey[]) => void
 }) {
   const { crm } = boot()
+  const MAPPABLE = mappable(fields)
 
   const update = (i: number, patch: Partial<EditableKey>) =>
     onChange(keys.map((k, n) => (n === i ? { ...k, ...patch } : k)))
@@ -77,7 +76,7 @@ export function WebhookKeys({
       <p className="text-xs leading-relaxed text-muted-foreground">
         Each key must match the field mapping in {crm} exactly — a key it does not know is ignored,
         and a missing required one gets the lead rejected. Saving writes these out in full, so a
-        location that shared a default set gets its own copy.
+        profile that shared a default set gets its own copy.
       </p>
 
       <div className="space-y-2">
@@ -118,9 +117,9 @@ export function WebhookKeys({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {LEAD_FIELDS.map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
+                      {fields.map((field) => (
+                        <SelectItem key={field.id} value={field.id}>
+                          {field.label}
                         </SelectItem>
                       ))}
                       <SelectItem value="__value">A fixed value</SelectItem>
@@ -209,7 +208,7 @@ export function WebhookKeys({
         })}
       </div>
 
-      <Button type="button" variant="outline" size="sm" onClick={() => onChange([...keys, blank()])}>
+      <Button type="button" variant="outline" size="sm" onClick={() => onChange([...keys, blank(fields[0]?.id ?? '')])}>
         <Plus /> Add a key
       </Button>
     </div>

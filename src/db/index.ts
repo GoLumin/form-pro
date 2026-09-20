@@ -2,7 +2,7 @@
 //
 // The package never picks a database. Each site hands one in, because the two
 // hosts have different native storage and neither is reachable from the other:
-// the Cloudflare sites bind D1, mulebox.com connects to Netlify's Postgres, and
+// a Cloudflare site binds D1, a Netlify one connects to its Postgres, and
 // a local `astro dev` has neither, so it opens a file.
 //
 // All three arrive here as a Kysely dialect plus the SQL flavour it speaks,

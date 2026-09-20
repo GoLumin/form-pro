@@ -18,10 +18,10 @@ import type { SubmitResponse } from './types.ts'
 /**
  * What one submission decided, in the order it decided it.
  *
- * The point is that these are not six independent settings: the market picked
- * from the ZIP chooses the instance that priced the quote, the name on the
- * email, the people told about the lead and the CRM it lands in. Showing them
- * as one chain is what makes a mismatch obvious.
+ * The point is that these are not independent settings: the profile a
+ * submission resolves to chooses the name on the email, the people told about
+ * the lead and the CRM it lands in. Showing them as one chain is what makes a
+ * mismatch obvious.
  */
 export function Results({ result }: { result: SubmitResponse | null }) {
   const { crm, single } = boot()
@@ -69,32 +69,34 @@ export function Results({ result }: { result: SubmitResponse | null }) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <CardTitle className="flex items-center gap-2">
-                {result.market?.name}
+                {result.profile?.name}
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
-                  {result.market?.slug}
+                  {result.profile?.slug}
                 </Badge>
               </CardTitle>
               <CardDescription>
                 {single
-                  ? 'Everything below belongs to this one market: the instance that priced the quote, the name on the email, the people told, and the CRM the lead lands in.'
-                  : 'One decision, not six. This market chose the instance that priced the quote, the name on the email, the people told, and the CRM the lead lands in — they are never split.'}
+                  ? 'Everything below belongs to this one profile: the name on the email, the people told, and the CRM the lead lands in.'
+                  : 'One decision, not several. This profile chose the name on the email, the people told, and the CRM the lead lands in — they are never split.'}
               </CardDescription>
             </div>
             <Badge variant="outline">
-              {result.market?.fromPage ? 'from the page' : 'from the ZIP'}
+              {result.profile?.fromPage ? 'from the page' : 'from the submission'}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-3">
-          <Fact label="Delivery ZIP" value={result.zip ?? ''} />
-          <Fact label="Quote created" value={result.quoteId ? result.quoteId.slice(0, 12) : 'none'} />
-          <Fact label="Phone shown" value={result.market?.phoneNumber ?? ''} />
+          <Fact label="Subject" value={result.emailSubject ?? ''} />
+          {result.quoteId != null && (
+            <Fact label="Quote created" value={result.quoteId ? result.quoteId.slice(0, 12) : 'none'} />
+          )}
+          <Fact label="Phone shown" value={result.profile?.phoneNumber ?? ''} />
         </CardContent>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Envelope
-          title="Customer confirmation"
+          title="Client confirmation"
           icon={<Mail className="size-4" />}
           subject={result.emailSubject}
           envelope={result.clientEnvelope}
@@ -147,7 +149,7 @@ export function Results({ result }: { result: SubmitResponse | null }) {
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
             {single
               ? `This webhook accepts only the keys declared for it.`
-              : `Each market's webhook accepts only its own keys, so this payload is shaped for this market alone.`}{' '}
+              : `Each profile's webhook accepts only its own keys, so this payload is shaped for this profile alone.`}{' '}
             Blank values are sent as empty strings, which several {crm} fields require. A key {crm}{' '}
             does not know is dropped silently — it answers 200 either way.
           </p>

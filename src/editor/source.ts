@@ -165,6 +165,23 @@ function arr(values: string[], shared: Record<string, string>): string {
   return `[${values.map(str).join(', ')}]`
 }
 
+/**
+ * Where a top-level `export const NAME = {` or `= [` begins.
+ *
+ * Tolerates a type annotation, because a site that writes
+ * `export const EMAIL_LABELS: EmailLabels = {` is doing the right thing and
+ * must not be punished for it by an editor that cannot find its own block.
+ * Returns the index of the newline before the declaration, which is what the
+ * callers slice from.
+ */
+function declarationAt(source: string, name: string, opener: '{' | '['): number {
+  // Built by concatenation rather than a template literal: the pattern is all
+  // backslash escapes, and a template literal eats the ones it does not know.
+  const re = new RegExp('(?:^|\\n)export const ' + name + '\\s*(?::[^=]+)?=\\s*\\' + opener)
+  const found = re.exec(source)
+  return found ? found.index : -1
+}
+
 /** The span of one profile's entry, from its key line to its closing brace. */
 function blockRange(source: string, slug: string): [number, number] {
   const key = /^[a-z]+$/.test(slug) ? slug : `'${slug}'`
@@ -255,9 +272,15 @@ function setInlineField(
   }
   const at = found.index + found[0].length
   const end = valueEnd(block, at)
-  const tail = block.slice(end)
-  const replaced =
-    block.slice(0, at) + ` ${value}` + (tail.startsWith(',') ? '' : '') + tail
+  // valueEnd consumes the comma that closed the value but stops *at* a closing
+  // bracket, so what followed the old value is put back as it was: the comma
+  // where there was one, and otherwise whatever spacing separated it from the
+  // brace. Dropping the comma runs the next property onto this line and the
+  // site stops building — which the editor never sees, only the next deploy.
+  const raw = block.slice(at, end)
+  const hadComma = raw.endsWith(',')
+  const trailing = hadComma ? ',' : (/\s*$/.exec(raw)?.[0] ?? '')
+  const replaced = block.slice(0, at) + ` ${value}${trailing}` + block.slice(end)
   return source.slice(0, from) + replaced + source.slice(to)
 }
 
@@ -396,7 +419,7 @@ export function applyEdit(source: string, edit: EditPayload): string {
  */
 export function applyLabels(source: string, labels: EmailLabels): string {
   let next = source
-  const open = next.indexOf('\nexport const EMAIL_LABELS = {\n')
+  const open = declarationAt(next, 'EMAIL_LABELS', '{')
   if (open < 0) throw new Error(`EMAIL_LABELS: not found in ${SOURCE}`)
   const close = next.indexOf('\n}\n', open)
   if (close < 0) throw new Error('EMAIL_LABELS: not closed as expected')
@@ -448,7 +471,7 @@ export function applyFieldLabels(
   labels: Record<string, string>
 ): string {
   let next = source
-  const open = next.indexOf('\nexport const FIELDS = ')
+  const open = declarationAt(next, 'FIELDS', '[')
   if (open < 0) throw new Error(`FIELDS: not found in ${SOURCE}`)
 
   for (const [id, label] of Object.entries(labels)) {
@@ -473,7 +496,7 @@ export function applyFieldLabels(
  */
 export function applySettings(source: string, settings: SiteSettings): string {
   let next = source
-  const open = next.indexOf('\nexport const SITE_SETTINGS = {\n')
+  const open = declarationAt(next, 'SITE_SETTINGS', '{')
   if (open < 0) throw new Error(`SITE_SETTINGS: not found in ${SOURCE}`)
   const close = next.indexOf('\n}\n', open)
   if (close < 0) throw new Error('SITE_SETTINGS: not closed as expected')
@@ -604,8 +627,8 @@ function keysByName(keys: EditableKey[] | undefined): Record<string, string> {
 export function diffEditable(
   before: EditableProfile | undefined,
   after: Record<string, unknown>,
-  labelsBefore: Record<string, unknown>,
-  labelsAfter: Record<string, unknown> | undefined,
+  labelsBefore: EmailLabels,
+  labelsAfter: EmailLabels | undefined,
   fieldLabelsBefore: Record<string, string> = {},
   fieldLabelsAfter: Record<string, string> | undefined = undefined
 ): Change[] {

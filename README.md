@@ -1,18 +1,23 @@
 # @golumin/form-pro
 
-An Astro integration that gives a marketing site **one declared source of truth**
-for its lead forms — who each email comes from and goes to, exactly which keys
-its CRM webhook accepts, and what the pricing block says — plus an
-authenticated console at `/form-preview` to test, edit, deploy and monitor all
-of it.
+An Astro integration that gives a site **one declared source of truth** for its
+lead forms — what the form collects, who each email comes from and goes to, and
+exactly which keys its CRM webhook accepts — plus an authenticated console at
+`/form-preview` to test, edit, deploy and monitor all of it.
 
-It exists because these values only work as a set. A quote created on one gofuse
-instance is not resolvable on another. A From address only sends if its domain
-is verified in the GetOutsend workspace whose key is used. A CRM webhook only
-maps the keys its own field-mapping screen declares. Splitting them across files
-and hosting dashboards is what lets a lead get priced by one market and filed in
-another's, and what lets a correct payload reach a webhook that cannot read it —
-with nothing visibly wrong on the site either time.
+It exists because these values only work as a set. A From address only sends if
+its domain is verified in the account whose key is used. A CRM webhook only maps
+the keys its own field-mapping screen declares. A webhook key can only draw from
+a field the form actually asks for. Splitting them across files and hosting
+dashboards is what lets a correct payload reach a webhook that cannot read it,
+and what lets a renamed field quietly empty a required CRM column — with nothing
+visibly wrong on the site either time.
+
+Nothing in the package knows what any particular form asks. A site declares its
+fields once and everything reads that list: the rows in both emails, the source
+fields a webhook key may draw from, the console's test submission, and the
+validation on the way in. Adding a question is a change in one file, in the
+site's own repository.
 
 ## Requirements
 
@@ -49,30 +54,134 @@ export default defineConfig({
   output: 'server',
   integrations: [
     formConsole({
-      config: './src/config/locations.ts',
+      config: './src/config/form.ts',
       mail: './src/lib/sendEmail.ts',
       env: './src/lib/consoleEnv.ts',   // Cloudflare only; see below
-      repo: 'GoLumin/austinmulebox',
-      crm: 'Stella',
+      repo: 'you/your-site',
+      crm: 'HubSpot',
       host: 'Cloudflare',
-      title: 'Mule Box Austin',
+      title: 'Example Co',
     }),
   ],
 })
 ```
 
-Then write `src/config/locations.ts` exporting `LOCATIONS`, `EMAIL_LABELS` and
-`SITE_SETTINGS` (see `SiteConfigModule` in `src/types.ts`), and
-`src/config/revisions.json` containing `[]`.
+Then write `src/config/form.ts` and `src/config/revisions.json` (containing
+`[]`). Two worked configs ship with the package and are typechecked with it:
+[`src/examples/contactForm.ts`](src/examples/contactForm.ts) — one form, one
+inbox, one CRM — and [`src/examples/quoteForm.ts`](src/examples/quoteForm.ts) —
+several profiles, routing between them, and a pricing back end. Copy whichever
+is closer.
 
-A single-location site declares one entry and the console says "the quote form"
-instead of naming markets. A site serving several declares one per market and
-gets ZIP routing between them. Nothing else about the shape changes.
+## The config
+
+Four exports, and two more only if you need them.
+
+### `FIELDS` — what the form collects
+
+```ts
+export const FIELDS = [
+  { id: 'firstName', label: 'First name', type: 'text', required: true },
+  { id: 'email', label: 'Email', type: 'email', required: true, audience: 'admin' },
+  {
+    id: 'topic',
+    label: 'What about',
+    type: 'choice',
+    options: [
+      { value: 'sales', label: 'Sales' },
+      { value: 'support', label: 'Support' },
+    ],
+  },
+  { id: 'storageType', label: 'Storage', type: 'choice', options: [...],
+    showWhen: { serviceType: 'store_it' } },
+  { id: 'fullName', label: 'Name', type: 'text',
+    derive: (v) => `${v.firstName} ${v.lastName}`.trim() },
+] as const satisfies readonly FieldDef[]
+```
+
+Types are `text`, `email`, `phone`, `date`, `zip`, `number`, `choice` and
+`textarea` — a closed list, because this is a lead pipeline rather than a form
+builder, and each one has to be something the emails and the webhook know how to
+write down.
+
+- **`showWhen`** is evaluated in the console's test form, in the emails and on
+  the way in, so a field that was not asked for is also not reported, not mailed
+  and not sent to the CRM. One rule, not four.
+- **`audience: 'admin'`** keeps a row out of the client's own copy. Telling
+  someone their own phone number back is the one thing in the message they
+  cannot need.
+- **`derive`** computes a value from the others, so it can never drift from
+  them. Derived fields are never asked for, and the function itself never
+  reaches the browser.
+- **`hidden`** keeps a field out of the emails' rows while still collecting it
+  and still sending it to the CRM — the two halves of a name that a derived
+  field already prints as one line.
+- **`headline: true`** names the field that says who a submission is from; it
+  becomes the heading of the internal email.
+- **`label`** is the only part the console can edit: it is the words beside the
+  value in both emails, and that is copy. The rest is structure, and changing it
+  changes what the webhook keys can draw from.
+
+Declaring it `as const satisfies readonly FieldDef[]` is what makes the ids
+checkable. Then use `ProfileFor<typeof FIELDS>`, `RoutingConfigFor<…>` and
+`QuotingConfigFor<…>` and a key pointed at a field that was renamed is a type
+error with a suggestion, rather than an empty column in the CRM:
+
+```
+Type '"firstNmae"' is not assignable to type '"email" | "firstName" | …'.
+Did you mean '"firstName"'?
+```
+
+### `PROFILES` — where a lead goes
+
+One destination: the brand on the email, the envelopes, the copy, the CRM
+webhook and its keys. A site with one form and one inbox declares one and never
+thinks about it again. A site serving several markets, brands or business units
+declares one each — nothing else about the shape changes.
+
+`fieldOptions` narrows a choice field per profile ("this branch doesn't sell
+that"), and `canary` is what the daily check submits as this profile.
+
+### `EMAIL_LABELS` and `SITE_SETTINGS`
+
+Shared wording — the date format, the subject template, and the pricing block's
+words for a site that has one — and the settings that belong to the site rather
+than a profile.
+
+### `ROUTING` — which profile handles a submission
+
+Optional. Defaults to `single` for one profile and `page` for several.
+
+| kind | |
+|---|---|
+| `single` | the one profile, always. Nothing is asked and nothing can fail |
+| `page` | the page the form was submitted from names it, by slug |
+| `lookup` | one field's value decides — each profile is asked, in order, and the first that covers it wins |
+
+`lookup` takes a `probe`, because whether a profile covers a value is a question
+only the site's own back end can answer. The package ships `zipCoverageProbe()`
+for the common case of asking a pricing instance; anything else is a few lines
+in the config.
+
+A page keeps its own profile whenever that profile covers the value, so an
+in-area visitor is never handed off just because another profile was asked
+earlier. Coverage that cannot be determined falls back to the page's own profile
+rather than refusing — a back end being down must not cost that profile a lead
+it already had in hand.
+
+### `QUOTING` — a pricing back end
+
+Optional, and off unless the integration is passed `quoting: true` or a path. A
+site that prices nothing neither imports one nor carries it in the bundle.
+
+It declares which of the site's fields each call is built from — which one holds
+the ZIP, which the date, which decides the service — and that is the whole join
+between what the form asks and what the back end is told.
 
 ## What the site keeps, and why
 
 Two files stay in the repository that deploys, because the console **edits and
-commits them**: `src/config/locations.ts` and `src/config/revisions.json`.
+commits them**: `src/config/form.ts` and `src/config/revisions.json`.
 Everything else — the types, the payload builder, the templates, the editor, the
 GitHub commit, the daily check and the whole page — comes from here, so a fix
 lands once and every site gets it on its next install.
@@ -85,8 +194,8 @@ Four things are seams rather than assumptions, each passed as a module path:
 - **`env`** — required on Cloudflare. Since Astro 6 the only way to a Worker's
   secrets is `import { env } from 'cloudflare:workers'`, a specifier that does
   not resolve anywhere else, so the site imports it and hands the reader in.
-- **`quoting`** — defaults to the `virtual:quoting` module the quote-experience
-  integration provides.
+- **`quoting`** — `true` for the `virtual:quoting` module the quote-experience
+  integration provides, or a path to the site's own client. Off by default.
 - **`logoResolver`** — for a site whose email logo varies by hostname.
 
 ## The quoting integration
@@ -98,11 +207,11 @@ instance and exposes the per-site presentation config the quote pages read.
 import quoteExperience from '@golumin/form-pro/quoting'
 
 quoteExperience({
-  baseUrl: 'https://mulebox.gofuse.app',
+  baseUrl: 'https://example.gofuse.app',
   tokenEnv: 'GOFUSE_API_TOKEN',
   env: './src/lib/consoleEnv.ts',   // Cloudflare only
   logo: '/logo.webp',
-  phones: [{ label: 'Austin Customers', number: '5125752929' }],
+  phones: [{ label: 'Austin', number: '5125550100' }],
 })
 ```
 
@@ -144,7 +253,7 @@ restart; there is no watch on it.
 
 ### The console
 
-- **Results** — one submission, and every decision it triggered: the location it
+- **Results** — one submission, and every decision it triggered: the profile it
   resolved and why, both email envelopes, the webhook payload key by key, and
   both rendered emails. Sending and posting are opt-in per submission, so it
   runs in production safely.
@@ -154,19 +263,25 @@ restart; there is no watch on it.
   of worked examples.
 - **Revisions** — who changed what, when, with a diff. Written into the
   repository in the same commit as the change.
-- **Settings** — what applies to the whole site rather than one location.
+- **Settings** — what applies to the whole site rather than one profile.
 
 ### The daily check
 
-Submits a quote through every location once a day and emails a digest: routing,
-catalog, pricing, webhook payload, envelope, render, and a real delivery. It
-answers `200` only when everything passed, so an uptime monitor pointed at it
+Submits through every profile once a day and emails a digest: routing, pricing
+where the site has any, webhook payload, envelope, render, and a real delivery.
+It answers `200` only when everything passed, so an uptime monitor pointed at it
 alerts on a broken form even if the digest is the thing that broke. No lead is
 ever posted to a CRM.
 
-Delivery is real on purpose. The outage this was written after was GetOutsend
+Delivery is real on purpose. The outage this was written after was the transport
 rejecting a From whose domain was not verified in the sending workspace —
 everything upstream was green, and only a real send sees it.
+
+## Known limitation
+
+One `FIELDS` list per site, so a site with two genuinely different forms — a
+contact form and a franchise enquiry, say — needs two installs or a superset of
+fields with `showWhen`. Several forms per site is the next thing to add.
 
 ## Environment
 

@@ -1,9 +1,9 @@
 // The integration. Adding it to astro.config gives a site the console at
 // /form-preview and the virtual modules the rest of the package reads.
 //
-// The site keeps two files of its own: src/config/locations.ts, which the
-// console edits and commits, and src/config/revisions.json, which records who
-// changed what. Everything else — the page, the editor, the templates, the
+// The site keeps two files of its own: src/config/form.ts, which declares what
+// the form collects and where a lead goes — and which the console edits and
+// commits — and src/config/revisions.json, which records who changed what. Everything else — the page, the editor, the templates, the
 // daily check — comes from here, so a fix lands once and every site gets it on
 // its next install.
 
@@ -17,7 +17,8 @@ import path from 'node:path'
 export interface FormConsoleOptions {
   /**
    * The site's config module, relative to the project root. It must export
-   * LOCATIONS, EMAIL_LABELS and SITE_SETTINGS (see SiteConfigModule).
+   * FIELDS, PROFILES, EMAIL_LABELS and SITE_SETTINGS (see SiteConfigModule).
+   * @default "src/config/form.ts"
    */
   config?: string
   /** Where the revision log lives, relative to the project root. */
@@ -30,11 +31,18 @@ export interface FormConsoleOptions {
    */
   mail?: string
   /**
-   * The site's quoting client, relative to the project root, exporting
-   * `getConfig` and `previewQuote`. Defaults to the `virtual:quoting` module
-   * the quote-experience integration provides.
+   * A pricing back end, for the few sites that price what they collect.
+   *
+   * `true` uses the `virtual:quoting` module the quote-experience integration
+   * provides; a path points at the site's own client, which must export
+   * `getConfig`, `previewQuote` and `createQuote`.
+   *
+   * Off by default, and that is the point: most forms price nothing, and a site
+   * that has no such back end should neither import one nor carry it in the
+   * bundle. The site's QUOTING export says which of its fields the calls are
+   * built from.
    */
-  quoting?: string
+  quoting?: string | boolean
   /**
    * Where the console keeps sign-ins, the revision log and the daily check's
    * history.
@@ -73,8 +81,8 @@ export interface FormConsoleOptions {
    *
    * Treat a value written here for what it is: a shared password in a public-ish
    * repository. It keeps the page away from crawlers and casual hands. The page
-   * can spend money on a real gofuse quote, so set the environment variables on
-   * anything that matters.
+   * really sends email and really files leads, so set the environment variables
+   * on anything that matters.
    */
   user?: string
   password?: string
@@ -85,8 +93,8 @@ export interface FormConsoleOptions {
   /** Branch the console commits to. GITHUB_BRANCH in the environment wins. */
   branch?: string
   /**
-   * Brand shown in the console's own chrome. Defaults to the first location's
-   * name, which is right for a single-location site.
+   * Brand shown in the console's own chrome. Defaults to the first profile's
+   * name, which is right for a single-profile site.
    */
   title?: string
   /**
@@ -163,7 +171,7 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
     hooks: {
       'astro:config:setup': ({ config, injectRoute, updateConfig, logger }) => {
         const root = fileURLToPath(config.root)
-        const configPath = path.resolve(root, options.config ?? 'src/config/locations.ts')
+        const configPath = path.resolve(root, options.config ?? 'src/config/form.ts')
         const revisionsPath = path.resolve(
           root,
           options.revisions ?? 'src/config/revisions.json'
@@ -172,16 +180,19 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
         const logoPath = options.logoResolver ? path.resolve(root, options.logoResolver) : null
         const envPath = options.env ? path.resolve(root, options.env) : null
         const adapter = adapterKind(config.adapter?.name)
-        // A single-location site has nothing to order and should not have to
-        // say so; a multi-market one declares the order beside the markets.
-        const declaresLookupOrder = /export\s+const\s+ZIP_LOOKUP_ORDER/.test(
-          readFileSync(configPath, 'utf8')
-        )
+        // Which optional exports the site actually declares. Read from the file
+        // rather than reached for through a named import that may not exist —
+        // which the bundler is right to warn about.
+        const configSource = readFileSync(configPath, 'utf8')
+        const declares = (name: string) =>
+          new RegExp(`export\\s+const\\s+${name}\\b`).test(configSource)
         const dbSource =
           options.database?.enabled === false
             ? 'export const database = null'
             : databaseModule(adapter, options.database ?? {})
-        const quotingPath = options.quoting ? path.resolve(root, options.quoting) : null
+        const quotingPath =
+          typeof options.quoting === 'string' ? path.resolve(root, options.quoting) : null
+        const quotingEnabled = options.quoting === true || quotingPath !== null
         const route = (options.route ?? '/form-preview').replace(/\/+$/, '') || '/form-preview'
         const packageRoot = path.resolve(fileURLToPath(import.meta.url), '../..')
 
@@ -191,8 +202,8 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           // GitHub knows nothing about this machine's directory layout.
           configPath: path.relative(root, configPath).split(path.sep).join('/'),
           revisionsPath: path.relative(root, revisionsPath).split(path.sep).join('/'),
-          user: options.user ?? 'MuleBox',
-          password: options.password ?? 'MuleBox@2026',
+          user: options.user ?? 'form',
+          password: options.password ?? 'form-console',
           canary: options.canary ?? true,
           repo: options.repo ?? '',
           branch: options.branch ?? 'main',
@@ -245,16 +256,13 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
             'config',
             [
               `export * from ${JSON.stringify(configPath)}`,
-              // Whether the site declares an order is settled by reading the
-              // file, rather than by reaching for a named export that may not
-              // exist — which the bundler is right to warn about.
-              declaresLookupOrder
-                ? ''
-                : [
-                    `import { LOCATIONS as __locations } from ${JSON.stringify(configPath)}`,
-                    `export const ZIP_LOOKUP_ORDER = Object.keys(__locations)`,
-                  ].join('\n'),
-            ].join('\n')
+              // The optional exports are filled in here so every consumer can
+              // import them unconditionally, rather than each one guarding.
+              declares('ROUTING') ? '' : 'export const ROUTING = undefined',
+              declares('QUOTING') ? '' : 'export const QUOTING = undefined',
+            ]
+              .filter(Boolean)
+              .join('\n')
           ),
           },
           {
@@ -323,9 +331,28 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           },
           {
             find: /^virtual:form-pro\/quoting$/,
+            // A site with no pricing back end gets a module that says so rather
+            // than one that imports something it does not have. Everything that
+            // would call these checks `enabled` first, so the throwing stubs
+            // exist only to make a mistake loud.
             replacement: emit(
               'quoting',
-              `export * from ${JSON.stringify(quotingPath ?? 'virtual:quoting')}`
+              quotingEnabled
+                ? [
+                    `export const enabled = true`,
+                    `export * from ${JSON.stringify(quotingPath ?? 'virtual:quoting')}`,
+                  ].join('\n')
+                : [
+                    `export const enabled = false`,
+                    `const off = () => {`,
+                    `  throw new Error(`,
+                    `    'form-pro: no pricing back end configured. Pass quoting: true to the integration.'`,
+                    `  )`,
+                    `}`,
+                    `export const getConfig = off`,
+                    `export const previewQuote = off`,
+                    `export const createQuote = off`,
+                  ].join('\n')
             ),
           },
         ]
@@ -391,12 +418,34 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
 }
 
 const CONSOLE_TYPES = `declare module 'virtual:form-pro/config' {
-  import type { EmailLabels, Location, SiteSettings } from '@golumin/form-pro/types'
-  export const LOCATIONS: Record<string, Location>
+  import type {
+    EmailLabels,
+    FieldDef,
+    Profile,
+    QuotingConfig,
+    RoutingConfig,
+    SiteSettings,
+  } from '@golumin/form-pro/types'
+  export const FIELDS: readonly FieldDef[]
+  export const PROFILES: Record<string, Profile>
   export const EMAIL_LABELS: EmailLabels
   export const SITE_SETTINGS: SiteSettings
-  export const ZIP_LOOKUP_ORDER: string[]
+  export const ROUTING: RoutingConfig | undefined
+  export const QUOTING: QuotingConfig | undefined
 }
 `
 
-export type { Location, Lead, EmailEnvelope, SiteSettings, EmailLabels } from './types.ts'
+export type {
+  EmailEnvelope,
+  EmailLabels,
+  FieldDef,
+  FieldOption,
+  FieldType,
+  Lead,
+  Profile,
+  ProfileProbe,
+  QuotingConfig,
+  RoutingConfig,
+  SiteConfigModule,
+  SiteSettings,
+} from './types.ts'

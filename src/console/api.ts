@@ -14,9 +14,15 @@ export interface Boot {
   host: string
   configPath: string
   route: string
-  markets: { slug: string; name: string }[]
+  profiles: { slug: string; name: string }[]
   single: boolean
-  defaultDate: string
+  /**
+   * How a submission finds its profile, so the test form knows whether to ask
+   * the server for options and which field it is waiting on.
+   */
+  routing: { kind: 'single' | 'page' | 'lookup'; field?: string; minLength?: number }
+  /** Whether this site has a pricing back end at all. */
+  quoting: boolean
 }
 
 export function boot(): Boot {

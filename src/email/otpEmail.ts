@@ -4,7 +4,7 @@
 // already verified in the sending account and lands in the dev outbox during
 // development — the two things that make a code reliably arrive.
 
-import { LOCATIONS } from 'virtual:form-pro/config'
+import { PROFILES } from 'virtual:form-pro/config'
 import { formatSender } from '../config.ts'
 import { COLORS, emailShell, esc } from './shell.ts'
 
@@ -25,7 +25,7 @@ export function otpEmail({
   brand: string
   minutes: number
 }): { from: string; subject: string; html: string } {
-  const first = Object.values(LOCATIONS)[0]
+  const first = Object.values(PROFILES)[0]
   const name = brand || first?.name || 'Form console'
 
   const body = `

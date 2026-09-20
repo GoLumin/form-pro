@@ -1,7 +1,7 @@
 {
   "name": "@golumin/form-pro",
   "version": "0.1.5",
-  "description": "One declared source of truth for a marketing site's lead forms — email envelopes, CRM webhook keys, pricing and the quoting client — with an authenticated console to test, edit, deploy and monitor them.",
+  "description": "Declare what a form collects once — fields, profiles, email envelopes and CRM webhook keys — and get an authenticated console to test, edit, deploy and monitor it.",
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
@@ -17,7 +17,6 @@
     "./components/*": "./src/components/*",
     "./package.json": "./package.json",
     "./routing": "./src/routing.ts",
-    "./catalog": "./src/catalog.ts",
     "./dateFormats": "./src/dateFormats.ts",
     "./quoting": "./src/quoting/index.ts",
     "./quoting/client": "./src/quoting/runtime.ts",
@@ -26,7 +25,11 @@
     "./db": "./src/db/index.ts",
     "./auth/server": "./src/auth/server.ts",
     "./db/d1": "./src/db/d1.ts",
-    "./db/postgres": "./src/db/postgres.ts"
+    "./db/postgres": "./src/db/postgres.ts",
+    "./fields": "./src/fields.ts",
+    "./quoting/catalog": "./src/quoting/catalog.ts",
+    "./quoting/coverage": "./src/quoting/coverage.ts",
+    "./quoting/submission": "./src/quoting/submission.ts"
   },
   "files": [
     "src",
@@ -58,7 +61,8 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "node scripts/writer.test.mjs"
   },
   "keywords": [
     "astro-integration",

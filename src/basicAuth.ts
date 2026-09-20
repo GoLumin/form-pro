@@ -5,7 +5,7 @@
 // second, which is how you rotate them without a deploy. A value in
 // astro.config is a shared password living in the repository: good enough to
 // keep the page out of crawlers and casual hands, and nothing more. The page
-// can spend money on a real gofuse quote, so set the variables where that
+// really sends email and really files leads, so set the variables where that
 // matters.
 
 import { envValue } from './env.ts'

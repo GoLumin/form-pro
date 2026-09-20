@@ -5,11 +5,20 @@ declare module 'virtual:form-pro/options' {
 }
 
 declare module 'virtual:form-pro/config' {
-  import type { EmailLabels, Location, SiteSettings } from './types.ts'
-  export const LOCATIONS: Record<string, Location>
+  import type {
+    EmailLabels,
+    FieldDef,
+    Profile,
+    QuotingConfig,
+    RoutingConfig,
+    SiteSettings,
+  } from './types.ts'
+  export const FIELDS: readonly FieldDef[]
+  export const PROFILES: Record<string, Profile>
   export const EMAIL_LABELS: EmailLabels
   export const SITE_SETTINGS: SiteSettings
-  export const ZIP_LOOKUP_ORDER: string[] | undefined
+  export const ROUTING: RoutingConfig | undefined
+  export const QUOTING: QuotingConfig | undefined
 }
 
 declare module 'virtual:form-pro/mail' {
@@ -18,6 +27,8 @@ declare module 'virtual:form-pro/mail' {
 }
 
 declare module 'virtual:form-pro/quoting' {
+  /** False on a site that wired no pricing back end; the rest then throw. */
+  export const enabled: boolean
   export const getConfig: (params?: Record<string, unknown>, overrides?: unknown) => Promise<any>
   export const previewQuote: (params: Record<string, unknown>, overrides?: unknown) => Promise<any>
   export const createQuote: (params: Record<string, unknown>, overrides?: unknown) => Promise<any>

@@ -13,7 +13,7 @@
 // field is a change in the site's config and nowhere else.
 
 import type { DateFormat } from './dateFormats.ts'
-import type { FieldDef, Lead } from './fields.ts'
+import type { FieldDef, FieldIdOf, Lead } from './fields.ts'
 
 export type { FieldDef, FieldOption, FieldType, Lead, FieldIdOf } from './fields.ts'
 
@@ -288,6 +288,64 @@ export interface SiteSettings {
    * still has its shared password, so an empty list locks nothing out.
    */
   consoleUsers?: string[]
+}
+
+// -----------------------------------------------------------------------------
+// Checked against one site's own fields
+// -----------------------------------------------------------------------------
+//
+// The types above take a field id as a plain string, because the package cannot
+// know what a site collects. The ones below take the site's own FIELDS and
+// narrow every id to what that list actually declares — so a webhook key
+// pointing at a field that was renamed or removed is a type error here rather
+// than an empty column in the CRM, which is the failure this whole package
+// exists to stop being invisible.
+//
+// Use them by declaring FIELDS `as const satisfies readonly FieldDef[]` and
+// passing `typeof FIELDS`.
+
+/** What one webhook key is filled with, drawn from `Id`. */
+export type WebhookValueFor<Id extends string> =
+  | { value: string }
+  | { from: Id; as?: Record<string, string> | WebhookTransform; whenEmpty?: string }
+
+/** A Profile whose every field reference is checked against the site's FIELDS. */
+export type ProfileFor<F extends readonly FieldDef[]> = Omit<
+  Profile,
+  'webhook' | 'fieldOptions' | 'canary'
+> & {
+  webhook: { url: string; keys: Record<string, WebhookValueFor<FieldIdOf<F>>> }
+  fieldOptions?: Partial<Record<FieldIdOf<F>, readonly string[]>>
+  canary?: { values?: Partial<Record<FieldIdOf<F>, string>> }
+}
+
+/** Routing whose deciding field is checked against the site's FIELDS. */
+export type RoutingConfigFor<F extends readonly FieldDef[]> =
+  | { kind: 'single' }
+  | { kind: 'page' }
+  | {
+      kind: 'lookup'
+      field: FieldIdOf<F>
+      order?: string[]
+      probe: ProfileProbe
+      minLength?: number
+    }
+
+/** Quoting whose every `from` is checked against the site's FIELDS. */
+export type QuotingConfigFor<F extends readonly FieldDef[]> = Omit<
+  QuotingConfig,
+  'from' | 'catalogOptions'
+> & {
+  from: {
+    zip: FieldIdOf<F>
+    destinationZip?: FieldIdOf<F>
+    size?: FieldIdOf<F>
+    date?: FieldIdOf<F>
+    name?: FieldIdOf<F>
+    email?: FieldIdOf<F>
+    phone?: FieldIdOf<F>
+  }
+  catalogOptions?: { field: FieldIdOf<F>; dependsOn: FieldIdOf<F> }
 }
 
 /**

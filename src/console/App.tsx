@@ -22,8 +22,9 @@ import { Revisions } from './Revisions.tsx'
 import { Settings } from './Settings.tsx'
 import { SETTING_INFO } from './settingInfo.tsx'
 import type {
-  EditableLocation,
+  EditableProfile,
   EmailLabels,
+  FieldDef,
   ReadResponse,
   Revision,
   SiteSettings,
@@ -33,14 +34,17 @@ import type {
 type SaveState = { tone: 'idle' | 'busy' | 'good' | 'bad'; message: React.ReactNode }
 
 export function App() {
-  const { brand, markets, single, crm, host, configPath, route } = boot()
+  const { brand, single, crm, host, configPath } = boot()
 
   const [result, setResult] = React.useState<SubmitResponse | null>(null)
   const [busy, setBusy] = React.useState(false)
 
   const [data, setData] = React.useState<ReadResponse | null>(null)
   const [current, setCurrent] = React.useState(0)
-  const [locations, setLocations] = React.useState<EditableLocation[]>([])
+  const [profiles, setProfiles] = React.useState<EditableProfile[]>([])
+  const [fields, setFields] = React.useState<FieldDef[]>([])
+  /** The field labels being edited, keyed by id — copy, unlike the rest. */
+  const [fieldLabels, setFieldLabels] = React.useState<Record<string, string>>({})
   const [labels, setLabels] = React.useState<EmailLabels | null>(null)
   const [settings, setSettings] = React.useState<SiteSettings | null>(null)
   const [revisions, setRevisions] = React.useState<Revision[]>([])
@@ -60,7 +64,9 @@ export function App() {
       return
     }
     setData(data)
-    setLocations(data.locations)
+    setProfiles(data.profiles)
+    setFields(data.fields)
+    setFieldLabels(Object.fromEntries(data.fields.map((f) => [f.id, f.label])))
     setLabels(data.labels)
     setSettings(data.settings)
     setRevisions(data.revisions ?? [])
@@ -70,27 +76,28 @@ export function App() {
     void load()
   }, [load])
 
-  const location = locations[current]
+  const profile = profiles[current]
 
   const commit = async (deploy: boolean, who: string) => {
-    if (!location || !labels || !settings) return
+    if (!profile || !labels || !settings) return
     setSave({ tone: 'busy', message: deploy ? 'Committing…' : 'Saving…' })
     const { data, error } = await api<any>('write', {
       deploy,
       author: who,
-      slug: location.slug,
-      emailBrand: location.emailBrand,
-      phoneNumber: location.phoneNumber,
-      emailResponsePromise: location.emailResponsePromise.replace(/\s+/g, ' ').trim(),
-      emailFooterLines: location.emailFooterLines,
-      storageOptions: location.storageOptions,
-      webhookUrl: location.webhookUrl,
-      clientEmail: location.clientEmail,
-      adminEmail: location.adminEmail,
-      clientCopy: location.clientCopy,
-      adminCopy: location.adminCopy,
-      webhookKeys: location.webhookKeys,
+      slug: profile.slug,
+      emailBrand: profile.emailBrand,
+      phoneNumber: profile.phoneNumber,
+      emailResponsePromise: profile.emailResponsePromise.replace(/\s+/g, ' ').trim(),
+      emailFooterLines: profile.emailFooterLines,
+      fieldOptions: profile.fieldOptions,
+      webhookUrl: profile.webhookUrl,
+      clientEmail: profile.clientEmail,
+      adminEmail: profile.adminEmail,
+      clientCopy: profile.clientCopy,
+      adminCopy: profile.adminCopy,
+      webhookKeys: profile.webhookKeys,
       emailLabels: labels,
+      fieldLabels,
       settings,
     })
 
@@ -151,7 +158,7 @@ export function App() {
     setAsking(null)
     if (deploy) {
       const ok = window.confirm(
-        `Commit ${location?.name ?? 'this change'} and deploy?\n\n` +
+        `Commit ${profile?.name ?? 'this change'} and deploy?\n\n` +
           `This goes live on ${window.location.hostname} in a couple of minutes, with no review step.`
       )
       if (!ok) return
@@ -212,12 +219,12 @@ export function App() {
           </li>
           <li>
             A From address whose domain is not verified in the sending account is rejected outright,
-            and the customer hears nothing.
+            and the client hears nothing.
           </li>
           {!single && (
             <li>
-              Row labels and pricing wording are shared by every market; editing them here changes
-              the others.
+              Field labels, the subject line and pricing wording are shared by every profile;
+              editing them here changes the others.
             </li>
           )}
         </ul>
@@ -249,12 +256,16 @@ export function App() {
       <div className="grid gap-6 p-6 lg:grid-cols-[minmax(320px,1fr)_2fr]">
         <div className="h-fit space-y-5 rounded-xl border bg-card p-5 shadow-xs">
           <div>
-            <h2 className="font-semibold">Quote submission</h2>
+            <h2 className="font-semibold">Test submission</h2>
             <p className="text-sm text-muted-foreground">
               One submission, run through the real code paths.
             </p>
           </div>
-          <QuoteForm onResult={setResult} busy={busy} setBusy={setBusy} />
+          {fields.length ? (
+            <QuoteForm fields={fields} onResult={setResult} busy={busy} setBusy={setBusy} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Loading the form…</p>
+          )}
         </div>
 
         <Tabs defaultValue="results" className="gap-4">
@@ -273,26 +284,29 @@ export function App() {
             {productionWarning}
             {!single && (
               <div className="flex flex-wrap gap-2">
-                {locations.map((l, i) => (
+                {profiles.map((p, i) => (
                   <Button
-                    key={l.slug}
+                    key={p.slug}
                     variant={i === current ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setCurrent(i)}
                   >
-                    {l.name}
+                    {p.name}
                   </Button>
                 ))}
               </div>
             )}
-            {location && labels ? (
+            {profile && labels ? (
               <>
                 <Editor
-                  location={location}
+                  profile={profile}
+                  fields={fields}
+                  fieldLabels={fieldLabels}
                   labels={labels}
-                  onLocation={(next) =>
-                    setLocations(locations.map((l, i) => (i === current ? next : l)))
+                  onProfile={(next) =>
+                    setProfiles(profiles.map((p, i) => (i === current ? next : p)))
                   }
+                  onFieldLabels={setFieldLabels}
                   onLabels={setLabels}
                 />
                 {saveBar}
@@ -379,7 +393,7 @@ export function App() {
           <DialogHeader>
             <DialogTitle>What changed</DialogTitle>
             <DialogDescription>
-              {diff ? `${diff.market} · ${diff.author} · ${new Date(diff.at).toLocaleString()}` : ''}
+              {diff ? `${diff.profile} · ${diff.author} · ${new Date(diff.at).toLocaleString()}` : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

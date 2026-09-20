@@ -12,8 +12,8 @@ import { SETTING_INFO } from './settingInfo.tsx'
 import type { SiteSettings } from './types.ts'
 
 /**
- * What applies to the whole site rather than to one location. It lives in the
- * same file as the locations and saves the same way, so the values a person
+ * What applies to the whole site rather than to one profile. It lives in the
+ * same file as the profiles and saves the same way, so the values a person
  * changes are never split between a config file and a hosting dashboard where
  * only one of the two gets updated.
  */
@@ -68,7 +68,7 @@ export function Settings({
               onChange={(e) => set({ canaryEmailTo: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">
-              One address. It receives one digest a day, plus one quote email per location when
+              One address. It receives one digest a day, plus one email per profile when
               delivery is on. No lead is ever posted to a CRM by the check.
             </p>
           </div>
@@ -92,28 +92,6 @@ export function Settings({
             <p className="text-xs text-muted-foreground">
               Added as a Cc to every message the site sends, customer confirmations included — so
               the recipient can see it.
-            </p>
-          </div>
-          <div className="space-y-2">
-            <LabelWithInfo id="franchiseAdminTo" onExplain={onExplain}>
-              Franchise enquiries go to
-            </LabelWithInfo>
-            <Textarea
-              id="franchiseAdminTo"
-              rows={3}
-              value={settings.franchiseAdminTo.join('\n')}
-              onChange={(e) =>
-                set({
-                  franchiseAdminTo: e.target.value
-                    .split('\n')
-                    .map((x) => x.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              One per line. Quote leads never come here — those go to the location's own team
-              addresses, on the Editor tab.
             </p>
           </div>
         </CardContent>

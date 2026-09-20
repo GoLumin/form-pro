@@ -9,14 +9,14 @@ import { Textarea } from '../components/ui/textarea.tsx'
 import { boot } from './api.ts'
 import { MailPreview } from './MailPreview.tsx'
 import { WebhookKeys } from './WebhookKeys.tsx'
-import type { EditableEnvelope, EditableLocation, EmailLabels } from './types.ts'
+import type { EditableEnvelope, EditableProfile, EmailLabels, FieldDef } from './types.ts'
 
 /**
- * One location's configuration, as the file declares it.
+ * One profile's configuration, as the file declares it.
  *
  * Four sub-tabs because the four things a lead touches are different jobs: who
- * the customer hears from, who internally is told, what the CRM receives, and
- * what the pricing block says. They all save together, since they all live in
+ * the client hears from, who internally is told, what the CRM receives, and
+ * what the shared wording says. They all save together, since they all live in
  * one entry in one file.
  */
 
@@ -28,31 +28,42 @@ const unlines = (v: string) =>
     .filter(Boolean)
 
 export function Editor({
-  location,
+  profile,
+  fields,
+  fieldLabels,
   labels,
-  onLocation,
+  onProfile,
+  onFieldLabels,
   onLabels,
 }: {
-  location: EditableLocation
+  profile: EditableProfile
+  /** What the form collects. Structure is read-only here; labels are copy. */
+  fields: FieldDef[]
+  fieldLabels: Record<string, string>
   labels: EmailLabels
-  onLocation: (next: EditableLocation) => void
+  onProfile: (next: EditableProfile) => void
+  onFieldLabels: (next: Record<string, string>) => void
   onLabels: (next: EmailLabels) => void
 }) {
   const { crm, single } = boot()
-  const set = (patch: Partial<EditableLocation>) => onLocation({ ...location, ...patch })
+  const set = (patch: Partial<EditableProfile>) => onProfile({ ...profile, ...patch })
+  const choices = fields.filter((f) => f.type === 'choice' && (f.options?.length ?? 0) > 0)
 
   /** A [data-copy-key] edited in the preview maps back to one config field. */
   const applyCopy = (key: string, template: string) => {
     if (key === 'responsePromise') return set({ emailResponsePromise: template })
-    if (key.startsWith('rows.')) {
-      return onLabels({ ...labels, rows: { ...labels.rows, [key.slice(5)]: template } })
+    if (key.startsWith('fields.')) {
+      return onFieldLabels({ ...fieldLabels, [key.slice(7)]: template })
     }
     if (key.startsWith('pricing.')) {
-      return onLabels({ ...labels, pricing: { ...labels.pricing, [key.slice(8)]: template } })
+      return onLabels({
+        ...labels,
+        pricing: { ...(labels.pricing ?? {}), [key.slice(8)]: template },
+      })
     }
     const [group, field] = key.split('.')
-    if (group === 'client') return set({ clientCopy: { ...location.clientCopy, [field]: template } })
-    if (group === 'admin') return set({ adminCopy: { ...location.adminCopy, [field]: template } })
+    if (group === 'client') return set({ clientCopy: { ...profile.clientCopy, [field]: template } })
+    if (group === 'admin') return set({ adminCopy: { ...profile.adminCopy, [field]: template } })
   }
 
   return (
@@ -68,7 +79,7 @@ export function Editor({
         <Envelope
           title="Who the confirmation comes from, and who else sees it"
           description="The From domain must be verified in the sending account, or the message is rejected and the customer hears nothing."
-          value={location.clientEmail}
+          value={profile.clientEmail}
           onChange={(clientEmail) => set({ clientEmail })}
         />
         <Card>
@@ -80,7 +91,7 @@ export function Editor({
           </CardHeader>
           <CardContent>
             <MailPreview
-              slug={location.slug}
+              slug={profile.slug}
               kind="client"
               dateFormat={labels.dateFormat}
               onCopyChange={applyCopy}
@@ -94,7 +105,7 @@ export function Editor({
         <Envelope
           title="Who is told about a new lead"
           description="Everyone listed is on the To line. Leave it empty and nobody is notified — the customer still gets their confirmation, so it fails quietly."
-          value={location.adminEmail}
+          value={profile.adminEmail}
           onChange={(adminEmail) => set({ adminEmail })}
         />
         <Card>
@@ -103,7 +114,7 @@ export function Editor({
           </CardHeader>
           <CardContent>
             <MailPreview
-              slug={location.slug}
+              slug={profile.slug}
               kind="admin"
               dateFormat={labels.dateFormat}
               onCopyChange={applyCopy}
@@ -127,48 +138,62 @@ export function Editor({
               <Label htmlFor="webhookUrl">Endpoint</Label>
               <Input
                 id="webhookUrl"
-                value={location.webhookUrl}
+                value={profile.webhookUrl}
                 onChange={(e) => set({ webhookUrl: e.target.value })}
                 className="font-mono text-xs"
               />
             </div>
             <WebhookKeys
-              keys={location.webhookKeys}
+              keys={profile.webhookKeys}
+              fields={fields}
               onChange={(webhookKeys) => set({ webhookKeys })}
             />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">What this location sells</CardTitle>
-            <CardDescription>
-              gofuse has no indoor/outdoor concept — both collapse to one "store-it" service — so
-              the catalog cannot answer this and the form has to be told.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex gap-6">
-            {(['indoor', 'outdoor'] as const).map((option) => (
-              <div key={option} className="flex items-center gap-2">
-                <Checkbox
-                  id={`storage-${option}`}
-                  checked={location.storageOptions.includes(option)}
-                  onCheckedChange={(v) =>
-                    set({
-                      storageOptions:
-                        v === true
-                          ? [...location.storageOptions, option]
-                          : location.storageOptions.filter((s) => s !== option),
-                    })
-                  }
-                />
-                <Label htmlFor={`storage-${option}`} className="capitalize">
-                  {option} storage
-                </Label>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        {choices.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">What this profile offers</CardTitle>
+              <CardDescription>
+                Tick what this one actually handles. Everything ticked appears in the form; a
+                field with nothing ticked offers all of its options.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {choices.map((field) => {
+                const chosen = profile.fieldOptions[field.id] ?? []
+                return (
+                  <div key={field.id} className="space-y-2">
+                    <p className="text-sm font-medium">{fieldLabels[field.id] ?? field.label}</p>
+                    <div className="flex flex-wrap gap-5">
+                      {(field.options ?? []).map((option) => (
+                        <div key={option.value} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`opt-${field.id}-${option.value}`}
+                            checked={chosen.includes(option.value)}
+                            onCheckedChange={(v) =>
+                              set({
+                                fieldOptions: {
+                                  ...profile.fieldOptions,
+                                  [field.id]:
+                                    v === true
+                                      ? [...chosen, option.value]
+                                      : chosen.filter((o) => o !== option.value),
+                                },
+                              })
+                            }
+                          />
+                          <Label htmlFor={`opt-${field.id}-${option.value}`}>{option.label}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+        )}
       </TabsContent>
 
       <TabsContent value="pricing" className="space-y-4">
@@ -178,7 +203,7 @@ export function Editor({
             <CardDescription>
               {single
                 ? 'Shared with every email this site sends.'
-                : 'Shared by every market — editing here changes the others too.'}{' '}
+                : 'Shared by every profile — editing here changes the others too.'}{' '}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">{'{amount}'}</code>,{' '}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">{'{monthly}'}</code> and{' '}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">{'{firstMonth}'}</code> are
@@ -186,7 +211,7 @@ export function Editor({
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            {Object.entries(labels.pricing).map(([key, value]) => (
+            {Object.entries(labels.pricing ?? {}).map(([key, value]) => (
               <div key={key} className="space-y-2">
                 <Label htmlFor={`pricing-${key}`} className="font-mono text-xs">
                   {key}
@@ -195,7 +220,10 @@ export function Editor({
                   id={`pricing-${key}`}
                   value={value}
                   onChange={(e) =>
-                    onLabels({ ...labels, pricing: { ...labels.pricing, [key]: e.target.value } })
+                    onLabels({
+                      ...labels,
+                      pricing: { ...(labels.pricing ?? {}), [key]: e.target.value },
+                    })
                   }
                 />
               </div>
@@ -205,22 +233,24 @@ export function Editor({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Row labels</CardTitle>
+            <CardTitle className="text-base">Field labels</CardTitle>
             <CardDescription>
-              The left-hand column of the details block in both emails.
+              What the form asks, and the left-hand column of the details block in both emails.
+              What the form <em>collects</em> is structure and stays a code edit — these are the
+              words beside it.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-3">
-            {Object.entries(labels.rows).map(([key, value]) => (
-              <div key={key} className="space-y-2">
-                <Label htmlFor={`row-${key}`} className="font-mono text-xs">
-                  {key}
+            {fields.map((field) => (
+              <div key={field.id} className="space-y-2">
+                <Label htmlFor={`field-${field.id}`} className="font-mono text-xs">
+                  {field.id}
                 </Label>
                 <Input
-                  id={`row-${key}`}
-                  value={value}
+                  id={`field-${field.id}`}
+                  value={fieldLabels[field.id] ?? field.label}
                   onChange={(e) =>
-                    onLabels({ ...labels, rows: { ...labels.rows, [key]: e.target.value } })
+                    onFieldLabels({ ...fieldLabels, [field.id]: e.target.value })
                   }
                 />
               </div>
@@ -230,25 +260,60 @@ export function Editor({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">This location</CardTitle>
+            <CardTitle className="text-base">Subject line</CardTitle>
+            <CardDescription>
+              Shared by every email this site sends.{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">{'{brand}'}</code> is the
+              subject-line brand below; any field id is filled in from the submission.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="subjectTemplate">Template</Label>
+              <Input
+                id="subjectTemplate"
+                value={labels.subjectTemplate}
+                onChange={(e) => onLabels({ ...labels, subjectTemplate: e.target.value })}
+                className="font-mono text-xs"
+              />
+            </div>
+            {labels.adminSubjectPrefix != null && (
+              <div className="space-y-2">
+                <Label htmlFor="adminSubjectPrefix">Internal copy's prefix</Label>
+                <Input
+                  id="adminSubjectPrefix"
+                  value={labels.adminSubjectPrefix}
+                  onChange={(e) =>
+                    onLabels({ ...labels, adminSubjectPrefix: e.target.value })
+                  }
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">This profile</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="emailBrand">Subject-line brand</Label>
               <Input
                 id="emailBrand"
-                value={location.emailBrand}
+                value={profile.emailBrand}
                 onChange={(e) => set({ emailBrand: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Reads "{location.emailBrand} Quote - Keep It".
+                Fills <code className="rounded bg-muted px-1">{'{brand}'}</code> in the subject
+                line above.
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phoneNumber">Phone shown to the customer</Label>
+              <Label htmlFor="phoneNumber">Phone shown to the client</Label>
               <Input
                 id="phoneNumber"
-                value={location.phoneNumber}
+                value={profile.phoneNumber}
                 onChange={(e) => set({ phoneNumber: e.target.value })}
               />
             </div>
@@ -257,7 +322,7 @@ export function Editor({
               <Textarea
                 id="footer"
                 rows={3}
-                value={lines(location.emailFooterLines)}
+                value={lines(profile.emailFooterLines)}
                 onChange={(e) => set({ emailFooterLines: unlines(e.target.value) })}
               />
               <p className="text-xs text-muted-foreground">
