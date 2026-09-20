@@ -22,12 +22,24 @@ const bootstrap = { route: options.route, brand, api: `${options.route}/auth` }
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark" style="color-scheme: dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <title>{brand} — sign in</title>
+    {/* The console's three faces. Loaded from Google Fonts rather than shipped
+        as files because the package is installed by copying `src` — a binary
+        in there is a binary in every site's repository. Every stack in
+        styles.css falls back to a face with close metrics, so a site behind a
+        network that cannot reach fonts.googleapis.com gets a plainer console,
+        not a broken one, and deleting these two lines is a supported way to
+        opt out. */}
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
     <link rel="stylesheet" href={`${assets}/console.css?v=${v}`} />
   </head>
   <body>

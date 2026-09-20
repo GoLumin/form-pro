@@ -1,8 +1,7 @@
 import * as React from 'react'
-import { AlertTriangle, CalendarIcon, Loader2 } from 'lucide-react'
+import { CalendarIcon, Loader2, Play } from 'lucide-react'
 import { Button } from '../components/ui/button.tsx'
 import { Calendar } from '../components/ui/calendar.tsx'
-import { Checkbox } from '../components/ui/checkbox.tsx'
 import { Input } from '../components/ui/input.tsx'
 import { Label } from '../components/ui/label.tsx'
 import {
@@ -18,8 +17,10 @@ import {
   SelectValue,
 } from '../components/ui/select.tsx'
 import { Separator } from '../components/ui/separator.tsx'
+import { Switch } from '../components/ui/switch.tsx'
 import { Textarea } from '../components/ui/textarea.tsx'
 import { api, boot } from './api.ts'
+import { Eyebrow } from './instrument.tsx'
 import type { FieldDef, OptionsResponse, SubmitResponse } from './types.ts'
 
 /**
@@ -29,6 +30,11 @@ import type { FieldDef, OptionsResponse, SubmitResponse } from './types.ts'
  * order, appearing and disappearing under the same conditions — because both
  * read the one declaration. A console that offered fields the form does not
  * would report on a submission nobody can actually make.
+ *
+ * What it deliberately does NOT own is whether the run reaches the outside
+ * world. Those two switches live in the arming strip across the top of the
+ * page, where they are visible from every screen — a decision that dangerous
+ * should not be something you scroll past inside a form.
  */
 
 /** Whether a field applies, given what has been filled in so far. */
@@ -81,16 +87,19 @@ function initialValues(fields: FieldDef[]): Record<string, string> {
 
 export function QuoteForm({
   fields,
+  armed,
   onResult,
   busy,
   setBusy,
 }: {
   fields: FieldDef[]
+  /** The arming strip's two switches, which decide what this run really does. */
+  armed: { emails: boolean; lead: boolean }
   onResult: (r: SubmitResponse) => void
   busy: boolean
   setBusy: (b: boolean) => void
 }) {
-  const { profiles, single, routing, quoting, crm } = boot()
+  const { profiles, single, routing, quoting } = boot()
 
   const ANY = '__any'
   const [profileSlug, setProfileSlug] = React.useState(
@@ -101,8 +110,6 @@ export function QuoteForm({
     initialValues(fields)
   )
   const [liveQuote, setLiveQuote] = React.useState(quoting)
-  const [reallySend, setReallySend] = React.useState(false)
-  const [reallyPost, setReallyPost] = React.useState(false)
   const [dateOpen, setDateOpen] = React.useState<string | null>(null)
 
   const [options, setOptions] = React.useState<OptionsResponse | null>(null)
@@ -180,8 +187,8 @@ export function QuoteForm({
       profileSlug: pageSlug,
       values,
       liveQuote,
-      reallySend,
-      reallyPost,
+      reallySend: armed.emails,
+      reallyPost: armed.lead,
     })
     setBusy(false)
     if (error) {
@@ -193,9 +200,7 @@ export function QuoteForm({
 
   const section = (title: string, children: React.ReactNode) => (
     <div className="space-y-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        {title}
-      </p>
+      <Eyebrow>{title}</Eyebrow>
       {children}
     </div>
   )
@@ -352,10 +357,9 @@ export function QuoteForm({
         </div>
       )}
 
-      <Separator />
-
-      <div className="space-y-3">
-        {quoting && (
+      {quoting && (
+        <>
+          <Separator />
           <Toggle
             id="live"
             checked={liveQuote}
@@ -363,32 +367,18 @@ export function QuoteForm({
             title="Ask for live pricing"
             hint="Creates a real quote on the pricing back end, which is what gives the emails their numbers. Off means no pricing block."
           />
-        )}
-        <Toggle
-          id="send"
-          checked={reallySend}
-          onChange={setReallySend}
-          danger
-          title="Really send the emails"
-          hint="Delivers to the real addresses shown on the right. Leave off to render and read them here."
-        />
-        <Toggle
-          id="post"
-          checked={reallyPost}
-          onChange={setReallyPost}
-          danger
-          title="Really post the lead"
-          hint={`Files a real lead in ${crm}. Leave off to see the payload without sending it.`}
-        />
-      </div>
+        </>
+      )}
 
-      <Button type="submit" className="w-full" disabled={busy}>
+      <Button type="submit" size="lg" className="w-full" disabled={busy}>
         {busy ? (
           <>
             <Loader2 className="animate-spin" /> Running…
           </>
         ) : (
-          'Submit'
+          <>
+            <Play className="fill-current" /> Run submission
+          </>
         )}
       </Button>
     </form>
@@ -401,39 +391,18 @@ function Toggle({
   onChange,
   title,
   hint,
-  danger,
 }: {
   id: string
   checked: boolean
   onChange: (v: boolean) => void
   title: string
   hint: string
-  danger?: boolean
 }) {
   return (
-    <div
-      className={
-        danger
-          ? 'flex gap-3 rounded-lg border border-destructive/25 bg-destructive/5 p-3'
-          : 'flex gap-3 rounded-lg border p-3'
-      }
-    >
-      <Checkbox
-        id={id}
-        checked={checked}
-        onCheckedChange={(v) => onChange(v === true)}
-        className="mt-0.5"
-      />
+    <div className="flex gap-3">
+      <Switch id={id} checked={checked} onCheckedChange={onChange} className="mt-0.5" />
       <div className="space-y-1">
-        <Label
-          htmlFor={id}
-          className={
-            danger
-              ? 'flex items-center gap-1.5 font-semibold text-destructive'
-              : 'flex items-center gap-1.5 font-semibold'
-          }
-        >
-          {danger && <AlertTriangle className="size-3.5" />}
+        <Label htmlFor={id} className="font-semibold">
           {title}
         </Label>
         <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>

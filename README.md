@@ -61,6 +61,11 @@ export default defineConfig({
       crm: 'HubSpot',
       host: 'Cloudflare',
       title: 'Example Co',
+      // Declare these. The fallback is the same two words in every site that
+      // installs the package; FORM_CONSOLE_USER / FORM_CONSOLE_PASSWORD in the
+      // environment win over them and are what production should use.
+      user: 'example',
+      password: 'change-me',
     }),
   ],
 })
@@ -253,17 +258,44 @@ restart; there is no watch on it.
 
 ### The console
 
-- **Results** — one submission, and every decision it triggered: the profile it
-  resolved and why, both email envelopes, the webhook payload key by key, and
-  both rendered emails. Sending and posting are opt-in per submission, so it
-  runs in production safely.
-- **Editor** — the configuration as a form. The emails are shown as the real
-  message with every editable string click-to-edit in place; injected values are
-  chips you can move or delete but not retype, and the dated one opens a picker
-  of worked examples.
-- **Revisions** — who changed what, when, with a diff. Written into the
-  repository in the same commit as the change.
+It is laid out as an instrument panel rather than a settings page. Across the
+top sit the two **arming switches** — really send the emails, really file the
+lead — and a status word that reads *Safe* until one of them is thrown. They are
+above every screen rather than inside the test form, because whether a run
+reaches a real inbox is the most consequential thing on the page and the easiest
+to forget. Both reset on reload.
+
+- **Path** — one submission and every decision it triggered, drawn as a single
+  chain: what was submitted, the profile it resolved to and why, both email
+  envelopes, the webhook payload key by key with what filled each, and where the
+  visitor lands. The stations under the profile inherit that one decision, which
+  is what makes a mismatch visible rather than merely present.
+- **Wiring** — what the form collects on the left, what the webhook accepts on
+  the right, and a line for every key that draws from a field. A field with no
+  line leaving it is flagged: the form asks for it and nothing about it reaches
+  the CRM.
+- **Fields** — the label beside each question, with what else that label is read
+  by worked out from the declaration: both emails, the subject line, any webhook
+  key drawn from it, and the other profiles.
+- **Envelopes**, **Email copy**, **Subject line** — the emails are shown as the
+  real message with every editable string click-to-edit in place; injected
+  values are chips you can move or delete but not retype, and the dated one
+  opens a picker of worked examples.
+- **History** — who changed what, when, with a diff. Written into the repository
+  in the same commit as the change.
 - **Settings** — what applies to the whole site rather than one profile.
+
+Saving and deploying both open a dialog listing the changes about to be written,
+worked out in the browser from what was loaded, with anything shared by every
+profile marked as such. Deploy is a button you hold rather than click: a commit
+that goes live with no review step deserves more of a gate than an OK one
+keystroke from the caret.
+
+The page is dark, and loads Archivo, Instrument Serif and JetBrains Mono from
+Google Fonts in `routes/console.astro`. Every stack falls back to a face with
+close metrics, so a network that cannot reach `fonts.googleapis.com` gets a
+plainer console rather than a broken one — and deleting those two `<link>` lines
+is a supported way to opt out.
 
 ### The daily check
 
@@ -287,7 +319,7 @@ fields with `showWhen`. Several forms per site is the next thing to add.
 
 | | |
 |---|---|
-| `FORM_CONSOLE_USER` / `FORM_CONSOLE_PASSWORD` | override the console's credentials without a deploy |
+| `FORM_CONSOLE_USER` / `FORM_CONSOLE_PASSWORD` | the console's credentials. Set these on anything that matters — they win over `user`/`password` in the config, so rotating needs no deploy |
 | `GITHUB_TOKEN` | enables Save and deploy. Scope it to this one repository, Contents: read and write |
 | `GITHUB_REPO` / `GITHUB_BRANCH` | override the configured repository and branch |
 | `CANARY_TOKEN` | required for `/api/canary` to run at all |

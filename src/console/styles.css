@@ -137,9 +137,16 @@
 /* ─────────────────────────────────────────────────────────────────────────
    Theme
    ─────────────────────────────────────────────────────────────────────────
-   Everything above this line is stock shadcn. These are the only colour
-   decisions the console makes, kept together so a component upgrade never has
-   to be reconciled with a bespoke palette.
+   Everything above this line is stock shadcn. These are the only colour and
+   type decisions the console makes, kept together so a component upgrade never
+   has to be reconciled with a bespoke palette.
+
+   The console is dark by default — `class="dark"` is on the document in
+   console.astro. It reads as an instrument panel rather than a settings page
+   because that is what it is: every screen reports what one submission
+   decided, and the two things that reach the outside world are switches you
+   have to throw. The light block below is kept working so removing that one
+   class still leaves a legible page.
 */
 
 :root {
@@ -155,12 +162,12 @@
   --muted: oklch(0.957 0.007 247.9);
   --secondary: oklch(0.951 0.008 247.9);
 
-  /* Mule Box crimson, for the one action on the page that does something.
-     Its foreground is near-white on purpose: the brand colour is dark enough
-     that the stock near-black foreground would be unreadable on it. */
-  --primary: oklch(0.43 0.15 18);
+  /* The live signal: the one action on a screen that does something, and the
+     decision every other panel inherits from. Its foreground is near-black
+     because the accent is light enough that white on it fails contrast. */
+  --primary: oklch(0.55 0.16 40);
   --primary-foreground: oklch(0.985 0.003 247.858);
-  --ring: oklch(0.43 0.15 18);
+  --ring: oklch(0.55 0.16 40);
 
   /* Two states this console has to tell apart at a glance, which shadcn does
      not ship a token for. `destructive` already covers "do not do this by
@@ -178,26 +185,53 @@
      that changing it changes more than the message you are looking at. */
   --shared: oklch(0.52 0.18 260);
 
-  /* The shell behind the cards. A token rather than a literal so the one place
-     the page is not `--background` is still declared with everything else. */
+  /* The shell behind the cards, and the chrome the shell is framed by. Tokens
+     rather than literals so the two places the page is not `--background` are
+     still declared with everything else. */
   --shell: oklch(0.966 0.006 247.9);
+  --chrome: oklch(1 0 0);
 }
 
 .dark {
-  --card: oklch(0.18 0.04 264.7);
-  --popover: oklch(0.18 0.04 264.7);
-  --primary: oklch(0.62 0.17 18);
-  --primary-foreground: oklch(0.145 0.02 18);
-  --ring: oklch(0.62 0.17 18);
-  --success: oklch(0.7 0.14 155);
-  --success-foreground: oklch(0.16 0.03 155);
-  --success-surface: oklch(0.26 0.05 155);
-  --warning: oklch(0.75 0.14 75);
-  --warning-foreground: oklch(0.2 0.04 75);
-  --warning-surface: oklch(0.27 0.05 75);
-  --warning-ink: oklch(0.88 0.06 80);
-  --shared: oklch(0.7 0.15 260);
-  --shell: oklch(0.129 0.042 264.695);
+  /* A toned ink rather than black: three surfaces a hairline apart, so panels
+     separate without a single shadow. Shadow is reserved for the one dialog
+     that commits to production. */
+  --shell: oklch(0.172 0.005 265);
+  --chrome: oklch(0.196 0.006 265);
+  --card: oklch(0.223 0.006 265);
+  --popover: oklch(0.258 0.007 265);
+  --background: oklch(0.223 0.006 265);
+  --muted: oklch(0.258 0.007 265);
+  --accent: oklch(0.275 0.007 265);
+  --secondary: oklch(0.3 0.008 265);
+  --secondary-foreground: oklch(0.935 0.004 95);
+
+  /* Warm off-white against the cool ground — the one place the palette is not
+     neutral, and what keeps long prose from reading as a terminal dump. */
+  --foreground: oklch(0.935 0.004 95);
+  --card-foreground: oklch(0.935 0.004 95);
+  --popover-foreground: oklch(0.935 0.004 95);
+  --muted-foreground: oklch(0.662 0.013 262);
+
+  /* `--border` is the hairline every panel is separated by. `--input` is a
+     touch lighter because it does two jobs at once in stock: the edge of a
+     field (`border-input`) and, at 30%, the fill inside it. */
+  --border: oklch(0.313 0.008 265);
+  --input: oklch(0.36 0.009 265);
+
+  --primary: oklch(0.655 0.16 40);
+  --primary-foreground: oklch(0.195 0.035 40);
+  --ring: oklch(0.655 0.16 40);
+
+  --destructive: oklch(0.665 0.175 25);
+  --success: oklch(0.79 0.15 162);
+  --success-foreground: oklch(0.2 0.04 162);
+  --success-surface: oklch(0.3 0.055 162);
+  --warning: oklch(0.79 0.14 78);
+  --warning-foreground: oklch(0.2 0.04 78);
+  --warning-surface: oklch(0.3 0.05 78);
+  --warning-ink: oklch(0.86 0.07 82);
+  --shared: oklch(0.72 0.13 262);
 }
 
 @theme inline {
@@ -210,4 +244,30 @@
   --color-warning-ink: var(--warning-ink);
   --color-shared: var(--shared);
   --color-shell: var(--shell);
+  --color-chrome: var(--chrome);
+
+  /* Three faces doing three jobs, and the rule is absolute: the serif names
+     things, the sans explains them, and the mono is for anything the machine
+     will compare character for character — ids, keys, addresses, URLs, SHAs,
+     payload values. A key that looks like prose is a key nobody proofreads.
+
+     Each falls back to a face with close metrics, because console.astro loads
+     them from Google Fonts and a site may well be behind a network that does
+     not reach it. Georgia standing in for Instrument Serif is a worse design,
+     not a broken one. */
+  --font-sans: Archivo, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* The faint dot grid behind the working area. It is the one texture in the
+   console, and it earns its place: it tells you at a glance which column is
+   the page and which are chrome. */
+.bg-grid {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in oklab, var(--foreground) 5%, transparent) 1px,
+    transparent 0
+  );
+  background-size: 24px 24px;
 }

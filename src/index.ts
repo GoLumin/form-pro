@@ -79,6 +79,11 @@ export interface FormConsoleOptions {
    * Basic auth for the console. FORM_CONSOLE_USER / FORM_CONSOLE_PASSWORD in
    * the environment win over these, which is how you rotate without a deploy.
    *
+   * Declare them. The fallback below is the same two words in every site that
+   * installs this package, so a site that leaves them unset is not protected by
+   * a password — it is protected by nobody having tried yet. The build says so
+   * on every run until one is set.
+   *
    * Treat a value written here for what it is: a shared password in a public-ish
    * repository. It keeps the page away from crawlers and casual hands. The page
    * really sends email and really files leads, so set the environment variables
@@ -239,6 +244,18 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           host: options.host ?? 'your host',
           hasDb: options.database?.enabled !== false,
           adapter,
+        }
+
+        // A default password in a package every site installs is a password on
+        // every site that installs it. It stays, so a site being set up is not
+        // locked out of the page it needs in order to finish setting up — but
+        // it is said out loud, on every build, until the site has its own.
+        if (!options.user || !options.password) {
+          logger.warn(
+            'the console is on the built-in default credentials. Pass `user` and `password` ' +
+              'to the integration, or set FORM_CONSOLE_USER and FORM_CONSOLE_PASSWORD in the ' +
+              'environment. This page really sends email and really files leads.'
+          )
         }
 
         // The modules the package imports, written to disk and aliased rather

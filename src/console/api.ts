@@ -23,6 +23,12 @@ export interface Boot {
   routing: { kind: 'single' | 'page' | 'lookup'; field?: string; minLength?: number }
   /** Whether this site has a pricing back end at all. */
   quoting: boolean
+  /** Which host's storage the Settings screen is talking about. */
+  adapter: string
+  hasDb: boolean
+  /** The signed-in email, where the site signs people in rather than using the
+   *  shared password. Shown in the header and offered as the revision author. */
+  user: string | null
 }
 
 export function boot(): Boot {
