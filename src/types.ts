@@ -212,6 +212,18 @@ export interface SiteSettings {
   marketingCc: string
   /** Who receives a franchise enquiry. Sites without one leave it empty. */
   franchiseAdminTo: string[]
+  /**
+   * Who may sign in to the console, once the site has a database.
+   *
+   * Declared here rather than in the database so that adding someone is a
+   * config change: it goes through the same review and deploy as everything
+   * else the console edits, and who has access to a tool that commits to
+   * production stays visible in the repository.
+   *
+   * Empty means nobody, which is the safe default — a site with no database
+   * still has its shared password, so an empty list locks nothing out.
+   */
+  consoleUsers?: string[]
 }
 
 /**

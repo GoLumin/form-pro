@@ -3,7 +3,8 @@
 // dev server.
 
 import type { APIContext } from 'astro'
-import { guard } from '../../auth.ts'
+import { guard } from '../../basicAuth.ts'
+import { auth, sessionUser } from '../../auth/server.ts'
 import { getFile, githubConfig } from '../../editor/github.ts'
 import { parseRevisions, REVISIONS_PATH, type Revision } from '../../editor/revisions.ts'
 import { SOURCE_PATH } from '../../editor/source.ts'
@@ -34,6 +35,15 @@ export async function authorize<T extends { token?: string }>(
   } catch {
     return { response: fail('Expected a JSON body') }
   }
+  // A signed-in session where the site has one, and the shared password where
+  // it does not. The two are never both required: a site mid-migration would
+  // otherwise lock out the very page you use to finish the migration.
+  if (auth()) {
+    const user = await sessionUser(context.request)
+    if (!user) return { response: fail('Not signed in', 401) }
+    return { body }
+  }
+
   const denied = await guard(context.request, body.token)
   // A 401 with a WWW-Authenticate header is right for the page; for an endpoint
   // it would pop a browser dialog on top of the console, so the refusal is

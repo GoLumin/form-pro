@@ -9,6 +9,7 @@ import type { AstroIntegration } from 'astro'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { loadEnv } from 'vite'
+import { adapterKind, envModule } from '../generated.ts'
 
 export interface QuotePhone {
   label: string
@@ -25,9 +26,9 @@ export interface QuoteExperienceOptions {
    */
   tokenEnv?: string
   /**
-   * A module exporting `readEnv(name)`. Required on Cloudflare, where secrets
-   * live behind `cloudflare:workers` and nowhere else. Without it the client
-   * reads `process.env` and `import.meta.env`, which is right for a Node host.
+   * A module exporting `readEnv(name)`, for a host this plugin does not already
+   * know how to read. Rarely needed — Cloudflare and Node are both handled,
+   * written out per adapter at build time.
    */
   env?: string
   /** Numbers shown on the quote pages. */
@@ -45,6 +46,10 @@ const VIRTUAL_ID = 'virtual:quoting'
 const RESOLVED_VIRTUAL_ID = '\0' + VIRTUAL_ID
 const CONFIG_ID = 'virtual:quoting/config'
 const RESOLVED_CONFIG_ID = '\0' + CONFIG_ID
+// Its own id rather than the console's, so the quoting integration works on a
+// site that has not installed the console.
+const ENV_ID = 'virtual:form-pro/quoting-env'
+const RESOLVED_ENV_ID = '\0' + ENV_ID
 
 const TYPES = `declare module 'virtual:quoting' {
   import type {
@@ -118,6 +123,7 @@ export default function quoteExperience(
         }
 
         const envPath = options.env ? path.resolve(root, options.env) : null
+        const envSource = envModule(adapterKind(config.adapter?.name))
 
         updateConfig({
           vite: {
@@ -128,9 +134,11 @@ export default function quoteExperience(
                 resolveId(id) {
                   if (id === VIRTUAL_ID) return RESOLVED_VIRTUAL_ID
                   if (id === CONFIG_ID) return RESOLVED_CONFIG_ID
+                  if (id === ENV_ID) return RESOLVED_ENV_ID
                   return null
                 },
                 load(id) {
+                  if (id === RESOLVED_ENV_ID) return envSource
                   if (id === RESOLVED_CONFIG_ID) {
                     // Presentation only — safe anywhere, including the browser.
                     return `export default ${JSON.stringify({ phones, logo })};`
@@ -159,9 +167,10 @@ export default function quoteExperience(
                     // A package specifier, not a machine-local path to a .ts
                     // file: the published layout has to resolve this too.
                     `import { createQuotingClient, formatCents } from '@golumin/form-pro/quoting/client';`,
+                    envPath ? '' : `import { readEnv as __formProEnv } from 'virtual:form-pro/quoting-env';`,
                     envPath
                       ? `import { readEnv } from ${JSON.stringify(envPath)};`
-                      : `const readEnv = undefined;`,
+                      : `const readEnv = (n) => __formProEnv(n);`,
                     `const client = createQuotingClient({`,
                     `  baseUrl: ${JSON.stringify(baseUrl)},`,
                     `  tokenEnv: ${JSON.stringify(tokenEnv)},`,

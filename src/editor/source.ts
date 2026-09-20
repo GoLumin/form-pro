@@ -108,7 +108,15 @@ export type SiteSettings = typeof SITE_SETTINGS
 
 /** The settings that belong to the site rather than a market. */
 export function readSettings(): SiteSettings {
-  return { ...SITE_SETTINGS, franchiseAdminTo: [...SITE_SETTINGS.franchiseAdminTo] }
+  const settings = SITE_SETTINGS as SiteSettings & { consoleUsers?: string[] }
+  return {
+    ...settings,
+    franchiseAdminTo: [...settings.franchiseAdminTo],
+    // Defaulted rather than required, because a site that predates console
+    // sign-in has no such line yet and must still be able to save the settings
+    // it does have.
+    consoleUsers: [...(settings.consoleUsers ?? [])],
+  }
 }
 
 /**
@@ -132,6 +140,10 @@ export function applySettings(source: string, settings: SiteSettings): string {
         : Array.isArray(value)
           ? `[${value.map((v) => str(String(v))).join(', ')}]`
           : str(String(value))
+    // A key the file does not declare is skipped rather than invented. Settings
+    // gained fields over time, and a site that has not adopted one must still
+    // be able to save the ones it has — the Settings tab says which are absent.
+    if (!new RegExp(`\\n\\s*${key}:`).test(inner)) continue
     inner = setField(inner, 0, inner.length, key, literal, '  ')
   }
   return next.slice(0, open) + inner + next.slice(close)

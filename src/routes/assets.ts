@@ -10,6 +10,7 @@
 
 import type { APIRoute } from 'astro'
 import js from '../console/console.js?raw'
+import signinJs from '../console/signin.js?raw'
 import css from '../console/console.css?raw'
 
 export const prerender = false
@@ -21,7 +22,8 @@ const TYPES: Record<string, string> = {
 
 export const GET: APIRoute = ({ params }) => {
   const file = String(params.file ?? '')
-  const body = file === 'console.js' ? js : file === 'console.css' ? css : null
+  const body =
+    file === 'console.js' ? js : file === 'signin.js' ? signinJs : file === 'console.css' ? css : null
   if (body == null) return new Response('Not found', { status: 404 })
 
   return new Response(body, {

@@ -30,3 +30,8 @@ declare module 'virtual:form-pro/logo' {
 declare module 'virtual:form-pro/env' {
   export const readEnv: (name: string) => string | undefined
 }
+
+declare module 'virtual:form-pro/db' {
+  import type { DatabaseHandle } from './db/index.ts'
+  export const database: (() => DatabaseHandle | null) | null
+}

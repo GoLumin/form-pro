@@ -8,6 +8,7 @@
 // its next install.
 
 import type { AstroIntegration } from 'astro'
+import { adapterKind, databaseModule, envModule } from './generated.ts'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -35,11 +36,33 @@ export interface FormConsoleOptions {
    */
   quoting?: string
   /**
-   * A module exporting `readEnv(name)`, for a runtime whose variables are not
-   * on `process.env`. A Cloudflare site needs one — since Astro 6 the only way
-   * to its secrets is `import { env } from 'cloudflare:workers'`, which this
-   * package cannot import because that specifier does not resolve elsewhere.
-   * Without it, `process.env` and `import.meta.env` are all that is read.
+   * Where the console keeps sign-ins, the revision log and the daily check's
+   * history.
+   *
+   * The two hosts have different native storage and neither is reachable from
+   * the other, so the plugin writes the right client for the adapter this site
+   * deploys with — a D1 binding on Cloudflare, a Postgres connection on
+   * Netlify — and the other one is never in the bundle. Sites pass nothing
+   * unless they want different names.
+   *
+   * With no database reachable the console keeps its shared-password gate and
+   * the Settings tab says so, which is a supported state rather than a fault.
+   */
+  database?: {
+    /** Cloudflare: the D1 binding's name. @default "CONSOLE_DB" */
+    binding?: string
+    /** Netlify and Node: the variable holding the connection string. */
+    urlEnv?: string
+    /** Set false to keep the shared password even where storage exists. */
+    enabled?: boolean
+  }
+  /**
+   * A module exporting `readEnv(name)`, for a host whose variables this plugin
+   * does not already know how to read.
+   *
+   * Rarely needed: Cloudflare and Node are both handled, generated per adapter
+   * for the same reason the database client is. Pass one only for a runtime
+   * neither covers.
    */
   env?: string
   /** Where the console is served. */
@@ -88,6 +111,9 @@ export interface FormConsoleOptions {
 
 const NAME = '@golumin/form-pro'
 
+
+
+
 /**
  * A cache key for the console bundle, taken from the bundle's own contents.
  *
@@ -100,7 +126,7 @@ const NAME = '@golumin/form-pro'
 const VERSION: string = (() => {
   try {
     const hash = createHash('sha1')
-    for (const name of ['console.js', 'console.css']) {
+    for (const name of ['console.js', 'signin.js', 'console.css']) {
       hash.update(readFileSync(fileURLToPath(new URL(`./console/${name}`, import.meta.url))))
     }
     return hash.digest('hex').slice(0, 12)
@@ -125,6 +151,10 @@ export interface ResolvedOptions {
   version: string
   crm: string
   host: string
+  /** Whether the site handed in a database module at all. */
+  hasDb: boolean
+  /** The adapter this site deploys with, so the console can name its storage. */
+  adapter: 'cloudflare' | 'netlify' | 'node' | 'unknown'
 }
 
 export default function formConsole(options: FormConsoleOptions = {}): AstroIntegration {
@@ -141,6 +171,16 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
         const mailPath = options.mail ? path.resolve(root, options.mail) : null
         const logoPath = options.logoResolver ? path.resolve(root, options.logoResolver) : null
         const envPath = options.env ? path.resolve(root, options.env) : null
+        const adapter = adapterKind(config.adapter?.name)
+        // A single-location site has nothing to order and should not have to
+        // say so; a multi-market one declares the order beside the markets.
+        const declaresLookupOrder = /export\s+const\s+ZIP_LOOKUP_ORDER/.test(
+          readFileSync(configPath, 'utf8')
+        )
+        const dbSource =
+          options.database?.enabled === false
+            ? 'export const database = null'
+            : databaseModule(adapter, options.database ?? {})
         const quotingPath = options.quoting ? path.resolve(root, options.quoting) : null
         const route = (options.route ?? '/form-preview').replace(/\/+$/, '') || '/form-preview'
         const packageRoot = path.resolve(fileURLToPath(import.meta.url), '../..')
@@ -161,6 +201,8 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           version: VERSION,
           crm: options.crm ?? 'the CRM',
           host: options.host ?? 'your host',
+          hasDb: options.database?.enabled !== false,
+          adapter,
         }
 
         updateConfig({
@@ -195,9 +237,16 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
                     // it.
                     return [
                       `export * from ${JSON.stringify(configPath)}`,
-                      `import * as __site from ${JSON.stringify(configPath)}`,
-                      `export const ZIP_LOOKUP_ORDER =`,
-                      `  __site.ZIP_LOOKUP_ORDER ?? Object.keys(__site.LOCATIONS)`,
+                      // Whether the site declares an order is settled here, by
+                      // reading the file, rather than by reaching for a named
+                      // export that may not exist — which the bundler is right
+                      // to warn about.
+                      declaresLookupOrder
+                        ? ''
+                        : [
+                            `import { LOCATIONS as __locations } from ${JSON.stringify(configPath)}`,
+                            `export const ZIP_LOOKUP_ORDER = Object.keys(__locations)`,
+                          ].join('\n'),
                     ].join('\n')
                   }
                   if (id === '\0virtual:form-pro/options') {
@@ -215,10 +264,11 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
                            )
                          }`
                   }
+                  if (id === '\0virtual:form-pro/db') return dbSource
                   if (id === '\0virtual:form-pro/env') {
                     return envPath
                       ? `export { readEnv } from ${JSON.stringify(envPath)}`
-                      : `export const readEnv = () => undefined`
+                      : envModule(adapter)
                   }
                   if (id === '\0virtual:form-pro/logo') {
                     return logoPath
@@ -246,7 +296,15 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           pattern: `${route}/assets/[file]`,
           entrypoint: `${NAME}/routes/assets.ts`,
         })
-        for (const endpoint of ['read', 'write', 'preview', 'submit', 'options']) {
+        // Better Auth's own endpoints, under the console's route rather than
+        // the site's /api/auth, so installing this cannot collide with an
+        // authentication the site already has.
+        injectRoute({
+          pattern: `${route}/auth/[...all]`,
+          entrypoint: `${NAME}/routes/auth.ts`,
+        })
+        injectRoute({ pattern: `${route}/sign-in`, entrypoint: `${NAME}/routes/sign-in.astro` })
+        for (const endpoint of ['read', 'write', 'preview', 'submit', 'options', 'database']) {
           injectRoute({
             pattern: `${route}/api/${endpoint}`,
             entrypoint: `${NAME}/routes/api/${endpoint}.ts`,

@@ -12,12 +12,22 @@
 // site built with React and one built with Preact.
 import { LOCATIONS } from 'virtual:form-pro/config'
 import options from 'virtual:form-pro/options'
-import { basicAuthChallenge, consoleToken } from '../auth.ts'
+import { basicAuthChallenge, consoleToken } from '../basicAuth.ts'
+import { auth, sessionUser } from '../auth/server.ts'
 
 export const prerender = false
 
-const denied = basicAuthChallenge(Astro.request)
-if (denied) return denied
+// Two gates, and only ever one of them in force. A site that has configured a
+// database signs people in by email; a site that has not keeps the shared
+// password it had before. Requiring both would lock someone out of the page
+// they need in order to set the first one up.
+const signedIn = auth() ? await sessionUser(Astro.request) : null
+if (auth()) {
+  if (!signedIn) return Astro.redirect(`${options.route}/sign-in`)
+} else {
+  const denied = basicAuthChallenge(Astro.request)
+  if (denied) return denied
+}
 
 // Only an authenticated render gets this, and it is what authorises the
 // endpoints behind the page — a browser will not resend Basic credentials on a
@@ -47,6 +57,9 @@ const bootstrap = {
   markets,
   single: markets.length === 1,
   defaultDate,
+  adapter: options.adapter,
+  hasDb: options.hasDb,
+  user: signedIn?.email ?? null,
 }
 ---
 

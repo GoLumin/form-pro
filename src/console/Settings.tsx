@@ -7,6 +7,7 @@ import { Label } from '../components/ui/label.tsx'
 import { Switch } from '../components/ui/switch.tsx'
 import { Textarea } from '../components/ui/textarea.tsx'
 import { boot } from './api.ts'
+import { Database } from './Database.tsx'
 import { SETTING_INFO } from './settingInfo.tsx'
 import type { SiteSettings } from './types.ts'
 
@@ -30,6 +31,8 @@ export function Settings({
 
   return (
     <div className="space-y-4">
+      <Database />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Daily form check</CardTitle>
