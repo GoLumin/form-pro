@@ -144,13 +144,63 @@ for a reason worth preserving:
 - **`quoting`** — `true` for the quoting integration's `virtual:quoting`, or a
   path to the site's own client. Off by default, so a site that prices nothing
   carries none of it.
-- **`logoResolver`** — for a site whose email logo varies by hostname.
+- **`logoResolver`** — for a site whose email logo varies by hostname, or
+  comes from a CMS. Worth knowing what breaks here: a CMS-hosted image is
+  usually served through a redirect with `cache-control: private`, which a
+  browser follows happily and Gmail's image proxy refuses to cache — so the
+  console's preview renders and the delivered mail shows a broken image. Email
+  images want a short, direct, publicly cacheable URL, which in practice means
+  the site's own `public/`, not the CMS.
 
 Secrets are read through `readEnv` **at call time**, never baked into a
 generated module. That is why rotating a token in a hosting dashboard takes
 effect on the next request rather than the next deploy, and why there is
 nothing to leak if a module is imported from the browser. Don't "simplify" this
 by inlining a value at build time.
+
+## Where a site's variables go
+
+Everything this package reads goes through `envValue()` in `src/env.ts`, which
+tries three places in order and **skips a value that is blank or whitespace**:
+
+```
+readEnv(name)          the site's `env` seam — on Cloudflare, the Worker's own
+                       vars and secrets, read at request time
+process.env[name]      Node hosts (Netlify)
+import.meta.env[name]  Vite-inlined, i.e. baked at build time
+```
+
+Two consequences worth knowing before telling anyone where to put a value.
+
+**A credential belongs in the host's secret store, not in the build.** On
+Cloudflare that is `npx wrangler secret put NAME`, which the `env` seam reaches
+on the next request — so rotating it needs no rebuild, and a build that forgot
+it still works. A build variable is read only while building, so the value is
+baked into the bundle and changing it needs a redeploy. Never put a credential
+in `wrangler.toml`'s `[vars]`: that file is committed, and the value lands in
+git history. `[vars]` is for public values like a Turnstile **site** key.
+
+`GITHUB_TOKEN` is the one people ask about, because the console reports
+`deployable: false` without it and Save-and-deploy stays disabled. It is read
+at request time by `githubConfig()` in `src/editor/github.ts`, so on Cloudflare:
+
+```sh
+npx wrangler secret put GITHUB_TOKEN     # fine-grained PAT, one repo, Contents: read and write
+```
+
+`GITHUB_REPO` and `GITHUB_BRANCH` override the integration's `repo` and
+`branch` options and are usually unnecessary. The same reasoning applies to
+`FORM_CONSOLE_USER` / `FORM_CONSOLE_PASSWORD`, `CANARY_TOKEN`, and a site's
+mail and quoting keys.
+
+**Note the blank-skipping is deliberate, and this package is unusual in having
+it.** A blank variable is the trap that keeps catching these sites: a site with
+`PUBLIC_TURNSTILE_SITE_KEY=` set empty in its build environment had the blank
+beat the real value in `wrangler.toml`, because to Vite an empty string is
+still a value. `envValue()` falls through a blank to the next source, so
+nothing here can be shadowed that way. Anything a site reads through
+`import.meta.env` directly — its own components, its own config — can be, and
+that is worth checking when a site reports a value "not arriving".
 
 ## The config writer
 
