@@ -216,7 +216,10 @@ Four things are seams rather than assumptions, each passed as a module path:
   not resolve anywhere else, so the site imports it and hands the reader in.
 - **`quoting`** — `true` for the `virtual:quoting` module the quote-experience
   integration provides, or a path to the site's own client. Off by default.
-- **`logoResolver`** — for a site whose email logo varies by hostname.
+- **`logoResolver`** — for a site whose email logo varies by hostname, or
+  comes from a CMS. Without it, and without `logo`, every email references
+  `/logo.webp` — a guess that is a broken image on most sites, so the build
+  says so.
 
 ## The quoting integration
 

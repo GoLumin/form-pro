@@ -276,6 +276,19 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           )
         }
 
+        // `/logo.webp` is a guess, and a wrong guess here is invisible until
+        // someone opens an email and finds a broken image — the send succeeds,
+        // the console renders, and nothing anywhere says the file is missing.
+        // mibox-rhode-island shipped exactly that. So the guess stays (a site
+        // mid-setup should still get a rendered email) and is said out loud.
+        if (!options.logo && !options.logoResolver) {
+          logger.warn(
+            `no email logo configured — every email will reference \`${resolved.logo}\`, ` +
+              'which most sites do not have. Pass `logo` with a path this site actually ' +
+              'serves, or `logoResolver` for a logo that comes from a CMS or varies by host.'
+          )
+        }
+
         // The modules the package imports, written to disk and aliased rather
         // than served from a Vite plugin as `virtual:` ids.
         //
