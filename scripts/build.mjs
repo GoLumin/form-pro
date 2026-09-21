@@ -18,7 +18,13 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs'
  */
 
 await build({
-  entryPoints: ['src/console/console.tsx', 'src/console/signin.tsx'],
+  // Mapped rather than listed, so the output names stay console.js and
+  // signin.js while signin's source can be named to avoid colliding with
+  // SignIn.tsx on a case-insensitive filesystem.
+  entryPoints: {
+    console: 'src/console/console.tsx',
+    signin: 'src/console/signin-entry.tsx',
+  },
   outdir: 'src/console',
   entryNames: '[name]',
   bundle: true,

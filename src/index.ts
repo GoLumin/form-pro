@@ -188,7 +188,25 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
         // Which optional exports the site actually declares. Read from the file
         // rather than reached for through a named import that may not exist —
         // which the bundler is right to warn about.
-        const configSource = readFileSync(configPath, 'utf8')
+        let configSource: string
+        try {
+          configSource = readFileSync(configPath, 'utf8')
+        } catch {
+          // Without this the site gets a bare ENOENT naming a path, with
+          // nothing saying which package wanted the file or what belongs in
+          // it — while a file that merely omits an export gets the guidance
+          // below. Same problem, so the same quality of answer.
+          const relative = path.relative(root, configPath).split(path.sep).join('/')
+          throw new Error(
+            `${NAME}: no config found at ${relative}.\n\n` +
+              'Create it, or point the integration at it with `config`. It declares ' +
+              'FIELDS (what the form collects), PROFILES (where a lead goes), ' +
+              'EMAIL_LABELS and SITE_SETTINGS.\n' +
+              'Worked examples ship with the package:\n' +
+              '  node_modules/@golumin/form-pro/src/examples/contactForm.ts — one form, one inbox\n' +
+              '  node_modules/@golumin/form-pro/src/examples/quoteForm.ts   — several profiles, routing, pricing'
+          )
+        }
         const declares = (name: string) =>
           new RegExp(`export\\s+const\\s+${name}\\b`).test(configSource)
 
@@ -442,10 +460,18 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           injectRoute({ pattern: '/api/canary', entrypoint: `${NAME}/routes/api/canary.ts` })
         }
 
-        if (config.output === 'static') {
+        // Every route injected above declares `export const prerender = false`
+        // in its own file, and that declaration wins over the site's output
+        // mode — so output: 'static' is fine, and warning about it turned
+        // sites away from a configuration that works. What the console
+        // actually needs is somewhere to run: without an adapter there is no
+        // server, and a static-only build cannot serve these at all.
+        if (!config.adapter) {
           logger.warn(
-            'The console is server-rendered and its endpoints are API routes. ' +
-              'This site is output: "static", so /form-preview will not run.'
+            'The console is server-rendered and its endpoints are API routes, but ' +
+              'this site has no adapter, so there is nothing to run them on and ' +
+              `${route} will 404. Add an adapter; output: "static" needs no change, ` +
+              'because every route this injects opts out of prerendering on its own.'
           )
         }
       },

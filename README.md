@@ -23,10 +23,17 @@ site's own repository.
 
 | | |
 |---|---|
-| Astro | **6 or newer**, `output: 'server'` |
+| Astro | **6 or newer**, with an adapter |
 | Tailwind | **v4** on the host site |
 | Node | 20 or newer |
 | React | none — the console bundles its own |
+
+The console is server-rendered and its endpoints are API routes, so the site
+needs an **adapter** — something to run them on. It does **not** need
+`output: 'server'`. Every route the integration injects declares
+`export const prerender = false` in its own file, and that wins over the site's
+output mode, so a site on `output: 'static'` with an adapter serves the console
+on demand and keeps prerendering everything else exactly as before.
 
 The console ships **pre-built**: one `console.js` with React 19, Radix and its
 components inside, and one `console.css` compiled from Tailwind. A site needs no
@@ -51,7 +58,8 @@ npm install @golumin/form-pro
 import formConsole from '@golumin/form-pro'
 
 export default defineConfig({
-  output: 'server',
+  // Any adapter; `output` can stay 'static'.
+  adapter: cloudflare(),
   integrations: [
     formConsole({
       config: './src/config/form.ts',
