@@ -166,6 +166,12 @@ export interface ShellOptions {
   /** One line under the headline, inside the band. */
   subheading?: string
   logoUrl: string
+  /**
+   * A colour to sit the logo on. Unset leaves it on the page background,
+   * which is what a mark drawn in dark ink wants; a white or white-outlined
+   * logo needs its own plate or it vanishes here.
+   */
+  logoBackground?: string
   /** Alt text on the logo and the document title. */
   title: string
   /** The rows between the band and the footer, built from the helpers above. */
@@ -188,6 +194,7 @@ export function emailShell({
   heading,
   subheading,
   logoUrl,
+  logoBackground,
   title,
   bodyHtml,
   footerLines,
@@ -215,7 +222,26 @@ ${preview ? `<span style="display:none;max-height:0;overflow:hidden;opacity:0;">
 
         <tr>
           <td style="padding:0 0 24px;text-align:center;">
-            <img src="${esc(logoUrl)}" alt="${esc(title)}" width="152" style="display:inline-block;height:auto;border:0;outline:none;text-decoration:none;"/>
+            ${
+              logoBackground
+                ? // A nested table rather than padding on the cell above:
+                  // Outlook's rendering engine ignores border-radius on a td
+                  // that also lays out the column, and bgcolor is the
+                  // attribute it does honour. Centred by the outer cell, so
+                  // the plate is only as wide as the logo.
+                  `<table cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;"><tr><td bgcolor="${esc(
+                    logoBackground
+                  )}" style="background-color:${esc(
+                    logoBackground
+                  )};padding:18px 26px;border-radius:14px;text-align:center;"><img src="${esc(
+                    logoUrl
+                  )}" alt="${esc(
+                    title
+                  )}" width="152" style="display:block;height:auto;border:0;outline:none;text-decoration:none;"/></td></tr></table>`
+                : `<img src="${esc(logoUrl)}" alt="${esc(
+                    title
+                  )}" width="152" style="display:inline-block;height:auto;border:0;outline:none;text-decoration:none;"/>`
+            }
           </td>
         </tr>
 

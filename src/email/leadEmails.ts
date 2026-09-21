@@ -67,6 +67,7 @@ export interface LeadEmailInput {
     | 'phoneNumber'
     | 'emailResponsePromise'
     | 'emailFooterLines'
+    | 'emailLogoBackground'
     | 'clientCopy'
     | 'adminCopy'
   >
@@ -177,6 +178,7 @@ export const renderLeadEmails = (input: LeadEmailInput) => {
     heading: copy('heading', profile.clientCopy.heading),
     subheading: editable('responsePromise', esc(profile.emailResponsePromise), mark),
     logoUrl: input.logoUrl,
+    logoBackground: profile.emailLogoBackground,
     title: input.emailSubject,
     footerLines: profile.emailFooterLines,
     rawHeadings: true,
@@ -209,6 +211,7 @@ export const renderLeadEmails = (input: LeadEmailInput) => {
     rawHeadings: true,
     subheading: adminCopy('subheading', profile.adminCopy.subheading),
     logoUrl: input.logoUrl,
+    logoBackground: profile.emailLogoBackground,
     title: `${input.labels.adminSubjectPrefix ?? ''}${input.emailSubject}`,
     footerLines: [adminCopy('footer', profile.adminCopy.footer)],
     rawFooter: true,

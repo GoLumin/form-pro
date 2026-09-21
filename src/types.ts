@@ -96,6 +96,17 @@ export interface Profile {
   emailResponsePromise: string
   /** Lines under the email card. A street address belongs here once there is one. */
   emailFooterLines: string[]
+  /**
+   * A colour to sit the email's logo on.
+   *
+   * The logo is rendered above the card, on the page's own near-white
+   * background, which suits a mark drawn in dark ink. A brand whose logo is
+   * white — or outlined in white for a dark header — disappears there, so it
+   * declares the plate it needs and gets a padded panel of that colour
+   * instead. Unset means the page background, which is what every site had
+   * before this existed.
+   */
+  emailLogoBackground?: string
   /** Sending-account key both emails below go out with. */
   mailApiKey?: string | undefined
   /**

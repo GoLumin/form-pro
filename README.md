@@ -155,6 +155,13 @@ declares one each — nothing else about the shape changes.
 `fieldOptions` narrows a choice field per profile ("this branch doesn't sell
 that"), and `canary` is what the daily check submits as this profile.
 
+`emailLogoBackground` is for a brand whose logo does not survive the page it is
+placed on. The email renders the logo above the card, on a near-white page,
+which suits a mark drawn in dark ink — a white logo, or one outlined in white
+for a dark header, disappears there. Set it to the colour the logo was drawn
+for and it gets a padded panel of that colour instead. Unset is the page
+background, which is what every site had before the option existed.
+
 ### `EMAIL_LABELS` and `SITE_SETTINGS`
 
 Shared wording — the date format, the subject template, and the pricing block's
