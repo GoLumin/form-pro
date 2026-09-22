@@ -221,6 +221,7 @@ export const EMAIL_LABELS: EmailLabels = {
     monthlyAfterNote: 'Every month after first month',
     monthlyLabel: 'Monthly',
     startingAt: 'Starting at {amount}',
+    billedLater: '(billed at later date)',
     feesSeparate: 'Plus {amount} in fees billed separately once confirmed.',
     dueSuffix: '(est.)',
     afterFirstMonth: 'Then {monthly}/mo after your first month.',

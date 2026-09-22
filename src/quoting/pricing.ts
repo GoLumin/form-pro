@@ -138,6 +138,12 @@ export function extractFees(preview: QuotePreview | null | undefined): {
       if (/waiver/i.test(f.name)) continue;
       recurring.push({ name: f.name, amount: amountOf(f) });
     } else {
+      // Excluded and hidden is gofuse saying this leg is not quoted here at
+      // all, so listing it would put a figure on the page with nothing beside
+      // it to say what it buys. Excluded but shown stays, and the page marks
+      // it — the same rule the quote email applies, so the two surfaces of one
+      // quote can never itemise it differently.
+      if (f.excluded_from_total && f.excluded_shown === false) continue;
       transit.push({
         name: f.name,
         amount: amountOf(f),

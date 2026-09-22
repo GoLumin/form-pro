@@ -270,6 +270,8 @@ export interface EmailLabels {
     monthlyAfterNote: string
     monthlyLabel: string
     startingAt: string
+    /** Beside a fee the quote states but does not collect up front. */
+    billedLater: string
     feesSeparate: string
     dueSuffix: string
     afterFirstMonth: string

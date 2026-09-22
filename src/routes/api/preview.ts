@@ -33,8 +33,12 @@ const SAMPLE_PRICING: EmailPricing = {
   discountLabel: '$50 OFF FIRST MONTH',
   dueLabel: 'Total Due at Delivery',
   dueBeforeDelivery: 33800,
-  totalFeesSeparate: 0,
-  transit: [{ name: 'Delivery', amount: 14900, startingAt: true, excludedFromTotal: false }],
+  totalFeesSeparate: 9900,
+  transit: [
+    { name: 'Delivery', amount: 14900, startingAt: true, excludedFromTotal: false },
+    // One leg quoted now and billed later, so the preview shows that row too.
+    { name: 'Final Pick Up', amount: 9900, startingAt: false, excludedFromTotal: true },
+  ],
 }
 
 export const POST: APIRoute = async (context) => {

@@ -27,6 +27,8 @@ export interface QuoteFee {
   recurring?: boolean
   starting_at?: boolean
   excluded_from_total?: boolean
+  /** Excluded from the total but still itemised, as gofuse flags it. */
+  excluded_shown?: boolean
 }
 
 export interface QuoteFigures {
@@ -81,16 +83,27 @@ export function toEmailPricing(
   }
 
   const monthly = ongoingProducts + recurringTotal
-  const transit = oneTime
-    .filter((f) => !f.excluded_from_total)
-    .map((f) => ({
-      name: f.name,
-      amount: feeAmount(f),
-      startingAt: Boolean(f.starting_at),
-      excludedFromTotal: false,
-    }))
+
+  // gofuse decides two things about a one-time fee, and they are not the same
+  // decision: whether it counts toward the up-front total, and whether it is
+  // itemised at all. A storage job's final delivery and pick-up legs are
+  // excluded from the total but flagged shown — they are real charges the
+  // customer will see, just at a later date — so they belong in the table
+  // saying so, not folded into a lump sum with no explanation of what it buys.
+  // A fee gofuse excludes AND hides is neither listed nor summed here, because
+  // a number with no name beside it is worse than no number at all.
+  // `excluded_shown !== false` rather than a plain truth test: a back end that
+  // predates the flag sends neither value, and the disclosing reading of
+  // silence is the right one for a charge the customer will be billed.
+  const shown = oneTime.filter((f) => !f.excluded_from_total || f.excluded_shown !== false)
+  const transit = shown.map((f) => ({
+    name: f.name,
+    amount: feeAmount(f),
+    startingAt: Boolean(f.starting_at),
+    excludedFromTotal: Boolean(f.excluded_from_total),
+  }))
   const totalFeesSeparate = sum(
-    oneTime.filter((f) => f.excluded_from_total).map(feeAmount)
+    shown.filter((f) => f.excluded_from_total).map(feeAmount)
   )
 
   const hasAnything = products.length > 0 || transit.length > 0 || quote.total != null

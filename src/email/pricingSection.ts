@@ -109,15 +109,25 @@ export function renderPricingSection(
     : lineRow(L('monthlyLabel'), `${money(pricing.monthly)}/mo`)
 
   // A fee's own name is the back end's, so it is injected rather than editable.
+  //
+  // A leg the back end quotes but does not charge up front is listed with the
+  // rest and marked, rather than left out: the customer is owed the figure, and
+  // a row that silently vanished from the table is how the same quote came to
+  // read as two different prices depending on where you looked at it.
   const feeRows = pricing.transit
-    .map((f) =>
-      lineRow(
-        mark ? `<span data-var="feeName" contenteditable="false">${esc(f.name)}</span>` : esc(f.name),
+    .map((f) => {
+      const name = mark
+        ? `<span data-var="feeName" contenteditable="false">${esc(f.name)}</span>`
+        : esc(f.name)
+      return lineRow(
+        f.excludedFromTotal
+          ? `${name} <span style="color:${COLORS.faint};font-weight:400;">${L('billedLater')}</span>`
+          : name,
         f.startingAt
           ? L('startingAt', { amount: money(f.amount) })
           : money(f.amount)
       )
-    )
+    })
     .join('')
 
   // Every email that shows pricing states the ongoing rate under the total, in

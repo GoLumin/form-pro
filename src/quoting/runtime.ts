@@ -55,6 +55,13 @@ export interface QuoteFeeLine {
   amount: number;
   per_quantity: boolean;
   excluded_from_total: boolean;
+  /**
+   * gofuse's own display flag, and a separate decision from the one above: a
+   * fee it keeps out of the up-front total can still be one it wants itemised —
+   * the final delivery and pick-up legs of a storage job, billed at a later
+   * date but quoted now. False means gofuse lists it nowhere.
+   */
+  excluded_shown: boolean;
   starting_at: boolean;
   recurring: boolean;
 }
