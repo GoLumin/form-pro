@@ -9,8 +9,9 @@
 
 import type { AstroIntegration } from 'astro'
 import { adapterKind, databaseModule, envModule } from './generated.ts'
+import { devFsPlugin } from './devFs.ts'
 import { fileURLToPath } from 'node:url'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -168,6 +169,11 @@ export interface ResolvedOptions {
   hasDb: boolean
   /** The adapter this site deploys with, so the console can name its storage. */
   adapter: 'cloudflare' | 'netlify' | 'node' | 'unknown'
+  /**
+   * Minted per dev server, and the only thing that gets a caller past the
+   * local-file endpoint. Never reaches a build: see devFs.ts.
+   */
+  devFsToken: string
 }
 
 export default function formConsole(options: FormConsoleOptions = {}): AstroIntegration {
@@ -262,6 +268,7 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
           host: options.host ?? 'your host',
           hasDb: options.database?.enabled !== false,
           adapter,
+          devFsToken: randomUUID(),
         }
 
         // A default password in a package every site installs is a password on
@@ -432,6 +439,15 @@ export default function formConsole(options: FormConsoleOptions = {}): AstroInte
 
         updateConfig({
           vite: {
+            // Saving to disk on a host whose dev server runs the site somewhere
+            // the files are not — see devFs.ts. Inert in a build.
+            plugins: [
+              devFsPlugin({
+                config: configPath,
+                revisions: revisionsPath,
+                token: resolved.devFsToken,
+              }),
+            ],
             // .astro and .tsx ship as source, so Vite has to compile them
             // rather than hand the file to the Node loader.
             ssr: { noExternal: [NAME] },

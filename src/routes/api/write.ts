@@ -12,7 +12,14 @@
 // take the whole site's build down.
 
 import type { APIRoute } from 'astro'
-import { authorize, fail, json, readSource } from './_shared.ts'
+import {
+  authorize,
+  fail,
+  json,
+  readProjectFile,
+  readSource,
+  writeProjectFile,
+} from './_shared.ts'
 import {
   applyEdit,
   applyFieldLabels,
@@ -116,7 +123,7 @@ export const POST: APIRoute = async (context) => {
       before = remote.content
       sha = remote.sha
     } else {
-      const source = await readSource()
+      const source = await readSource(context.url.origin)
       before = source.text
     }
   } catch (error) {
@@ -210,16 +217,24 @@ export const POST: APIRoute = async (context) => {
     changes,
   }
 
-  const { writeFile, readFile } = await import('node:fs/promises')
-  const path = await import('node:path')
-  await writeFile(path.join(process.cwd(), SOURCE_PATH), after, 'utf8')
+  const origin = context.url.origin
+  try {
+    await writeProjectFile('config', after, origin)
+  } catch (error) {
+    return fail((error as Error).message)
+  }
 
   // The log must never cost a save: a failure here is reported, not thrown.
   let logged = true
   try {
-    const logPath = path.join(process.cwd(), REVISIONS_PATH)
-    const existing = parseRevisions(await readFile(logPath, 'utf8').catch(() => '[]'))
-    await writeFile(logPath, serialiseRevisions(addRevision(existing, revision)), 'utf8')
+    const existing = parseRevisions(
+      await readProjectFile('revisions', origin).catch(() => '[]')
+    )
+    await writeProjectFile(
+      'revisions',
+      serialiseRevisions(addRevision(existing, revision)),
+      origin
+    )
   } catch (error) {
     console.error('Could not append to the revision log:', error)
     logged = false

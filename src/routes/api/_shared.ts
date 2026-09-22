@@ -9,6 +9,8 @@ import { getFile, githubConfig } from '../../editor/github.ts'
 import { parseRevisions, REVISIONS_PATH, type Revision } from '../../editor/revisions.ts'
 import { SOURCE_PATH } from '../../editor/source.ts'
 import { getEmailLogoUrl } from 'virtual:form-pro/logo'
+import options from 'virtual:form-pro/options'
+import { readDevFile, writeDevFile, type DevFile } from '../../devFs.ts'
 
 export const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -53,6 +55,44 @@ export async function authorize<T extends { token?: string }>(
 }
 
 /**
+ * One of the two editable files, read on a dev server.
+ *
+ * `node:fs` first, because on Netlify and Node that is simply how it works and
+ * costs nothing. On Cloudflare the dev server runs the site inside workerd,
+ * where `process.cwd()` is /bundle and the project is on no openable path — so
+ * the read goes back out to the Vite server, which is plain Node and has the
+ * files. See devFs.ts.
+ */
+export async function readProjectFile(file: DevFile, origin?: string): Promise<string> {
+  const relative = file === 'config' ? SOURCE_PATH : REVISIONS_PATH
+  try {
+    const { readFile } = await import('node:fs/promises')
+    const path = await import('node:path')
+    return await readFile(path.join(process.cwd(), relative), 'utf8')
+  } catch (error) {
+    if (!origin) throw error
+    return readDevFile(file, origin, options.devFsToken)
+  }
+}
+
+/** The same, the other way. */
+export async function writeProjectFile(
+  file: DevFile,
+  text: string,
+  origin?: string
+): Promise<void> {
+  const relative = file === 'config' ? SOURCE_PATH : REVISIONS_PATH
+  try {
+    const { writeFile } = await import('node:fs/promises')
+    const path = await import('node:path')
+    await writeFile(path.join(process.cwd(), relative), text, 'utf8')
+  } catch (error) {
+    if (!origin) throw error
+    await writeDevFile(file, text, origin, options.devFsToken)
+  }
+}
+
+/**
  * The revision log.
  *
  * GitHub first: a deployed build has no writable filesystem and, on a Worker,
@@ -60,7 +100,7 @@ export async function authorize<T extends { token?: string }>(
  * the bundle at build time, which is why the Revisions tab used to come up
  * empty in production. The repository is the only copy that is current.
  */
-export async function readRevisions(): Promise<Revision[]> {
+export async function readRevisions(origin?: string): Promise<Revision[]> {
   const config = githubConfig()
   if (config) {
     try {
@@ -72,16 +112,14 @@ export async function readRevisions(): Promise<Revision[]> {
   }
   // Dev server: read it off disk so a local save shows up immediately.
   try {
-    const { readFile } = await import('node:fs/promises')
-    const path = await import('node:path')
-    return parseRevisions(await readFile(path.join(process.cwd(), REVISIONS_PATH), 'utf8'))
+    return parseRevisions(await readProjectFile('revisions', origin))
   } catch {
     return []
   }
 }
 
 /** The config source text, from the same place and for the same reasons. */
-export async function readSource(): Promise<{
+export async function readSource(origin?: string): Promise<{
   text: string
   sha?: string
   from: 'github' | 'disk'
@@ -91,12 +129,7 @@ export async function readSource(): Promise<{
     const file = await getFile(config, SOURCE_PATH)
     return { text: file.content, sha: file.sha, from: 'github' }
   }
-  const { readFile } = await import('node:fs/promises')
-  const path = await import('node:path')
-  return {
-    text: await readFile(path.join(process.cwd(), SOURCE_PATH), 'utf8'),
-    from: 'disk',
-  }
+  return { text: await readProjectFile('config', origin), from: 'disk' }
 }
 
 /** The email logo as an absolute URL, whatever shape the site configured. */

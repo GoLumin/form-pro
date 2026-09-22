@@ -21,7 +21,7 @@ export const POST: APIRoute = async (context) => {
     fields: clientFields(readFields()),
     labels: readLabels(),
     settings: readSettings(),
-    revisions: await readRevisions(),
+    revisions: await readRevisions(context.url.origin),
     // Writing to disk only means anything where there is one to write to.
     writable: Boolean(import.meta.env.DEV),
     deployable: Boolean(githubConfig()),
