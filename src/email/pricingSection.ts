@@ -150,7 +150,10 @@ export function renderPricingSection(
             <table width="100%" cellpadding="0" cellspacing="0" border="0">${monthlyRows}${feeRows}
             </table>
             ${
-              pricing.totalFeesSeparate > 0
+              // Cleared in the console means the site does not want the line at
+              // all — rendering it empty left a paragraph's worth of blank space
+              // under the fee table with nothing in it.
+              pricing.totalFeesSeparate > 0 && L('feesSeparate', { amount: money(pricing.totalFeesSeparate) }).trim()
                 ? `<p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:${COLORS.faint};">${L('feesSeparate', { amount: money(pricing.totalFeesSeparate) })}</p>`
                 : ''
             }
@@ -163,7 +166,7 @@ export function renderPricingSection(
                 <td style="padding:20px 24px;">
                   <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${COLORS.gold};">${
                     mark ? `<span data-var="dueLabel" contenteditable="false">${esc(pricing.dueLabel)}</span>` : esc(pricing.dueLabel)
-                  } ${L('dueSuffix')}</p>
+                  }${L('dueSuffix').trim() ? ` ${L('dueSuffix')}` : ''}</p>
                   <p style="margin:0;font-size:30px;font-weight:800;letter-spacing:-0.5px;color:${COLORS.ink};">${money(pricing.dueBeforeDelivery)}</p>
                   <p style="margin:8px 0 0;font-size:14px;font-weight:600;line-height:1.5;color:#4B5563;">${afterFirstMonth}</p>
                 </td>
