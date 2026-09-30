@@ -86,9 +86,19 @@ export function renderPricingSection(
 
   // The discount is a first-month promotion, so the email spells both figures
   // out: what they pay now, and what recurs afterwards. Without the second row
-  // the discounted price reads as the ongoing rate.
+  // the discounted price reads as the ongoing rate — unless the site has
+  // cleared its label, in which case the row is left out entirely rather than
+  // printed as a bare "$129/mo" with nothing beside it.
   const discounted =
     pricing.firstMonth != null && pricing.firstMonth < pricing.monthly
+
+  const monthlyAfterRow = L('monthlyAfterLabel').trim()
+    ? lineRow(
+        L('monthlyAfterLabel'),
+        `${money(pricing.monthly)}/mo`,
+        L('monthlyAfterNote').trim() ? L('monthlyAfterNote') : undefined
+      )
+    : ''
 
   const monthlyRows = discounted
     ? lineRow(
@@ -100,12 +110,7 @@ export function renderPricingSection(
             ? `<span style="display:block;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${COLORS.gold};">${esc(pricing.discountLabel)}</span>`
             : ''
         }`
-      ) +
-      lineRow(
-        L('monthlyAfterLabel'),
-        `${money(pricing.monthly)}/mo`,
-        L('monthlyAfterNote')
-      )
+      ) + monthlyAfterRow
     : lineRow(L('monthlyLabel'), `${money(pricing.monthly)}/mo`)
 
   // A fee's own name is the back end's, so it is injected rather than editable.
