@@ -103,9 +103,16 @@ html {
 .qx .reveal {
     opacity: 0;
 }
+/* Longhands, never the `animation` shorthand: a minifier without browser
+   targets (Lightning CSS, Vite 8's default) folds animation-timeline into
+   the shorthand as `animation: linear both rise view()`, which browsers that
+   support view() reject outright, leaving every .reveal at opacity 0.
+   Longhands alone are never folded. */
 @supports (animation-timeline: view()) {
     .qx .reveal {
-        animation: rise both linear;
+        animation-name: rise;
+        animation-timing-function: linear;
+        animation-fill-mode: both;
         animation-timeline: view();
         animation-range: entry 4% cover 24%;
     }
