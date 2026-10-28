@@ -205,6 +205,11 @@ export const renderLeadEmails = (input: LeadEmailInput) => {
   const adminCopy = (key: string, template: string) =>
     editable(`admin.${key}`, fillCopy(template, vars, mark), mark)
 
+  // The team's email is the customer's, section for section, in the team's
+  // own words where the two differ: its heading is the lead, its details
+  // include how to reach them, and its buttons reply and call. The offer
+  // line, the estimate note and the footer are the customer's, so the team
+  // reads exactly what was promised.
   const adminHtml = emailShell({
     brand: adminCopy('heading', profile.adminCopy.heading),
     heading,
@@ -213,16 +218,18 @@ export const renderLeadEmails = (input: LeadEmailInput) => {
     logoUrl: input.logoUrl,
     logoBackground: profile.emailLogoBackground,
     title: `${input.labels.adminSubjectPrefix ?? ''}${input.emailSubject}`,
-    footerLines: [adminCopy('footer', profile.adminCopy.footer)],
+    footerLines: [...profile.emailFooterLines.map(esc), adminCopy('footer', profile.adminCopy.footer)],
     rawFooter: true,
     bodyHtml: [
+      paragraph(copy('greeting', profile.clientCopy.greeting), 28, true),
       detailsBlock(
         adminCopy('requestTitle', profile.adminCopy.requestTitle),
         detailRows(input, 'admin'),
         true
       ),
-      pricingHtml ||
-        footnote(adminCopy('noPricingNote', profile.adminCopy.noPricingNote), true),
+      pricingHtml
+        ? pricingHtml + footnote(copy('pricingNote', profile.clientCopy.pricingNote), true)
+        : footnote(adminCopy('noPricingNote', profile.adminCopy.noPricingNote), true),
       buttons([
         ...(email
           ? [
